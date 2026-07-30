@@ -37,7 +37,7 @@ public class ITApp implements CommandLineRunner {
     public void run(String... args) throws Exception {
         // ========== 第一轮对话 ==========
         // 添加系统消息：设定 AI 的角色定位
-        messages.add(new SystemMessage("你是一个Java高级工程师"));
+        messages.add(new SystemMessage("你是一个Java高级工程师。你拥有完整的对话历史记录，请基于历史内容回答问题，不要声明自己无法记住。"));
         // 添加用户消息：用户首次自我介绍
         messages.add(new UserMessage("我是陈爱国，编程爱好者"));
         // 调用 AI 模型，将当前所有消息打包成 Prompt 发送
