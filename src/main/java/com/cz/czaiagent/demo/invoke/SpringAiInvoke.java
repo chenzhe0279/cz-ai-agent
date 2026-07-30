@@ -1,3 +1,4 @@
+/*
 package com.cz.czaiagent.demo.invoke;
 
 import jakarta.annotation.Resource;
@@ -8,9 +9,11 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RestController;
 
+*/
 /**
  * Spring AI 框架调用 AI大模型 (阿里)
- */
+ *//*
+
 @Component
 public class SpringAiInvoke implements CommandLineRunner {
 
@@ -26,3 +29,4 @@ public class SpringAiInvoke implements CommandLineRunner {
         System.out.println(assistantMessage.getText());
     }
 }
+*/
