@@ -3,6 +3,18 @@ create database if not exists yu_picture;
 
 -- 切换库
 use yu_picture;
+-- 追加到 sql/create_table.sql
+
+-- 聊天记忆表
+create table if not exists chat_memory
+(
+    id              bigint auto_increment comment 'id' primary key,
+    conversation_id varchar(128) not null comment '会话ID',
+    message_type    varchar(32)  not null comment '消息类型: USER/ASSISTANT/SYSTEM',
+    content         text         not null comment '消息内容',
+    create_time     datetime default CURRENT_TIMESTAMP comment '创建时间',
+    INDEX idx_conversation_id (conversation_id)
+) comment '聊天记忆' collate = utf8mb4_unicode_ci;
 
 -- 用户表
 create table if not exists user

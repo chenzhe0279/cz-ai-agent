@@ -2,11 +2,11 @@ spring:
   application:
     name: cz-ai-agent
     # 数据库配置
-    datasource:
-      driver-class-name: com.mysql.cj.jdbc.Driver
-      url: jdbc:mysql://localhost:3306/yu_picture
-      username: root
-      password: 123456
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/yu_picture
+    username: root
+    password: 123456
   # 默认加载的配置文件是application-local.yml
   profiles:
     active: local

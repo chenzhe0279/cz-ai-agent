@@ -2,6 +2,7 @@ package com.cz.czaiagent.app;
 
 import com.cz.czaiagent.advisor.ForbiddenWordAdvisor;
 import com.cz.czaiagent.advisor.MyLoggerAdvisor;
+import com.cz.czaiagent.chatmemory.MysqlChatMemory;
 import com.cz.czaiagent.utils.PromptTemplate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -10,6 +11,7 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -28,10 +30,13 @@ public class LoveApp {
 
     private final ChatClient chatClient;
 
-    public LoveApp(ChatModel dashscopeChatModel) {
+    public LoveApp(ChatModel dashscopeChatModel, JdbcTemplate jdbcTemplate) {
         this.systemPromptTemplate = new PromptTemplate("prompts/love-expert.st");
         this.reportPromptTemplate = new PromptTemplate("prompts/love-report.st");
 
+        // 使用 MySQL 持久化对话记忆
+        //ChatMemory chatMemory = new MysqlChatMemory(jdbcTemplate);
+        //基于内存的持久化对话记忆
         ChatMemory chatMemory = new InMemoryChatMemory();
 
         String defaultSystemPrompt = systemPromptTemplate.render(Map.of(
