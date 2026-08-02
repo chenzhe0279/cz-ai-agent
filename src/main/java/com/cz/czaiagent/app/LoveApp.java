@@ -2,6 +2,7 @@ package com.cz.czaiagent.app;
 
 import com.cz.czaiagent.advisor.MyLoggerAdvisor;
 import com.cz.czaiagent.advisor.ReReadingAdvisor;
+import com.cz.czaiagent.chatmemory.FileBaseChatMemory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -33,6 +34,9 @@ public class LoveApp {
      * @param dashscopeChatModel
      */
     public LoveApp(ChatModel dashscopeChatModel){
+        //初始化基于文件的对话记忆
+        //String fileDir = System.getProperty("user.dir") + "/tmp/chat-memory";
+        //ChatMemory chatMemory = new FileBaseChatMemory(fileDir);
         //初始化基于内存的对话记忆
         ChatMemory chatMemory = new InMemoryChatMemory();
         //构建模型调用的基础参数

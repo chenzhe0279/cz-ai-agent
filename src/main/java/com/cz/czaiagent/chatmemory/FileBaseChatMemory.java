@@ -35,11 +35,24 @@ public class FileBaseChatMemory implements ChatMemory {
             baseDir.mkdirs();
         }
     }
+    // ... existing code ...
 
+    /**
+     * 添加单条消息到指定会话中
+     * 将单条Message包装为列表后，委托给saveConversation方法进行持久化保存
+     *
+     * @param conversationId 会话唯一标识
+     * @param messages       待添加的单条消息
+     */
     @Override
-    public void add(String conversationId,Message messages) {
-        saveConversation(conversationId,List.of(messages));
+    public void add(String conversationId, Message messages) {
+        //saveConversation(conv ersationId, List.of(messages));
+        // 直接调用列表版本的add方法，避免覆盖历史消息
+        add(conversationId, List.of(messages));
     }
+
+// ... existing code ...
+
     @Override
     public void add(String conversationId, List<Message> messages) {
         List<Message> messageList = getOrCreateConversation(conversationId);
