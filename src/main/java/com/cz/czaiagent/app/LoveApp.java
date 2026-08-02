@@ -1,5 +1,6 @@
 package com.cz.czaiagent.app;
 
+import com.cz.czaiagent.advisor.ForbiddenWordAdvisor;
 import com.cz.czaiagent.advisor.MyLoggerAdvisor;
 import com.cz.czaiagent.advisor.ReReadingAdvisor;
 import com.cz.czaiagent.chatmemory.FileBaseChatMemory;
@@ -45,7 +46,9 @@ public class LoveApp {
                 .defaultAdvisors(
                         new MessageChatMemoryAdvisor(chatMemory),
                         //自定义日志advisor拦截器,可按需开启
-                        new MyLoggerAdvisor()
+                        new MyLoggerAdvisor(),
+                        //自定义违禁词拦截器，可按需开启
+                        new ForbiddenWordAdvisor()
                         //自定义推理增强advisor拦截器，可按需开启
                         //new ReReadingAdvisor()
                 ).build();
