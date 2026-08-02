@@ -34,7 +34,7 @@ class LoveAppTest {
         String chatId = UUID.randomUUID().toString();
         //第一轮对话
         String message = "你好，我是编程爱好者陈爱国,我想找个女朋友，但是我不知道怎么办";
-        LoveApp.LoveReport loveReport = loveApp.doChatWithReport(message, chatId);
+        LoveApp.LoveReport loveReport = loveApp.doChatWithReport(message, chatId, "陈爱国");
         Assertions.assertNotNull(loveReport);
     }
 }
