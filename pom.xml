@@ -104,6 +104,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
+        <!--读取markdown文件-->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-markdown-document-reader</artifactId>
+            <version>1.0.0-M6</version>
+        </dependency>
 
         <!--&lt;!&ndash; Sa-Token 权限认证 &ndash;&gt;-->
         <dependency>

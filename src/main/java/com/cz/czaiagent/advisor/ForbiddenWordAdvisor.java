@@ -28,11 +28,12 @@ public class ForbiddenWordAdvisor implements CallAroundAdvisor, StreamAroundAdvi
     }
 
 
-    /**
+/**
      * 从文件系统加载违禁词文件 forbidden-words.txt 到内存集合
      * 若文件不存在则自动创建，逐行读取并跳过空行和以 # 开头的注释行
-     * 文件读取异常时仅记录警告日志，不阻断程序运行
-     */
+     * 文件读取异常时仅记录警告日志，不阻断程序运行*/
+
+
     private void loadForbiddenWords() {
         // 获取当前项目工作目录下的违禁词文件
         File file = new File(System.getProperty("user.dir"), "forbidden-words.txt");
