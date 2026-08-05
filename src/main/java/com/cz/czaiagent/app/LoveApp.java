@@ -3,12 +3,14 @@ package com.cz.czaiagent.app;
 import com.cz.czaiagent.advisor.ForbiddenWordAdvisor;
 import com.cz.czaiagent.advisor.MyLoggerAdvisor;
 import com.cz.czaiagent.chatmemory.MysqlChatMemory;
+import com.cz.czaiagent.rag.LoveAppRagCloudAdvisorConfig;
 import com.cz.czaiagent.utils.PromptTemplate;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
@@ -107,6 +109,9 @@ public class LoveApp {
     @Resource
     private VectorStore loveAppVectorStore;
 
+    @Resource
+    private Advisor loveAppRagCloudAdvisor;
+
     public String doChatWithRag(String message, String chatId) {
         ChatResponse chatResponse = chatClient
                 .prompt()
@@ -116,7 +121,9 @@ public class LoveApp {
                 // 开启日志，便于观察效果
                 .advisors(new MyLoggerAdvisor())
                 // 应用知识库问答
-                .advisors(new QuestionAnswerAdvisor(loveAppVectorStore))
+                //.advisors(new QuestionAnswerAdvisor(loveAppVectorStore))
+                //应用增强检索服务（云知识库服务）
+                .advisors(loveAppRagCloudAdvisor)
                 .call()
                 .chatResponse();
         String content = chatResponse.getResult().getOutput().getText();
