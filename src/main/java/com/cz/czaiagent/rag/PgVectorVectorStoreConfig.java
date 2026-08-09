@@ -20,12 +20,12 @@ import static org.springframework.ai.vectorstore.pgvector.PgVectorStore.PgIndexT
  * @author chenzhi
  * @date 2023/09/05
  */
-@Configuration
+//@Configuration
 public class PgVectorVectorStoreConfig {
 
     @Resource
     private LoveAppDocumentLoader loveAppDocumentLoader;
-    @Bean
+   // @Bean
     public VectorStore pgVectorVectorStore(JdbcTemplate jdbcTemplate, EmbeddingModel dashscopeEmbeddingModel) {
         VectorStore vectorStore = PgVectorStore.builder(jdbcTemplate, dashscopeEmbeddingModel)
                 .dimensions(1536)                    // 不要盲目设置

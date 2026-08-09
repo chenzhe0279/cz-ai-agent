@@ -3,7 +3,9 @@ package com.cz.czaiagent.app;
 import com.cz.czaiagent.advisor.ForbiddenWordAdvisor;
 import com.cz.czaiagent.advisor.MyLoggerAdvisor;
 import com.cz.czaiagent.chatmemory.MysqlChatMemory;
+import com.cz.czaiagent.demo.rag.QueryRewriter;
 import com.cz.czaiagent.rag.LoveAppRagCloudAdvisorConfig;
+import com.cz.czaiagent.rag.LoveAppRagCustomAdvisorFactory;
 import com.cz.czaiagent.utils.PromptTemplate;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -114,20 +116,25 @@ public class LoveApp {
 
     @Resource
     private VectorStore pgVectorVectorStore;
+
+    @Resource
+    private QueryRewriter queryRewriter;
     public String doChatWithRag(String message, String chatId) {
+        String rewriteMessage = queryRewriter.rewrite(message);
         ChatResponse chatResponse = chatClient
                 .prompt()
-                .system("你是一位恋爱匹配顾问。当用户描述自己的个人信息（如年龄、职业、星座、爱好等）并请求推荐对象时，" +
-                        "你需要判断用户的性别，然后从知识库检索结果中筛选出与用户性别相反的恋爱对象进行推荐。" +
-                        "例如：用户说自己是男生，就只推荐标注为【女生】的对象；用户说自己是女生，就只推荐标注为【男生】的对象。" +
-                        "推荐时重点关注对方的择偶要求与用户自身条件的匹配度，而不是简单找最相似的对象。")
-                .user(message)
+//                .system("你是一位恋爱匹配顾问。当用户描述自己的个人信息（如年龄、职业、星座、爱好等）并请求推荐对象时，" +
+//                        "你需要判断用户的性别，然后从知识库检索结果中筛选出与用户性别相反的恋爱对象进行推荐。" +
+//                        "例如：用户说自己是男生，就只推荐标注为【女生】的对象；用户说自己是女生，就只推荐标注为【男生】的对象。" +
+//                        "推荐时重点关注对方的择偶要求与用户自身条件的匹配度，而不是简单找最相似的对象。")
+                .user(rewriteMessage)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 // 开启日志，便于观察效果
                 .advisors(new MyLoggerAdvisor())
                 //应用RAG 知识库问答
-                .advisors(new QuestionAnswerAdvisor(loveAppVectorStore))
+                //.advisors(new QuestionAnswerAdvisor(loveAppVectorStore))
+                .advisors(LoveAppRagCustomAdvisorFactory.createLoveAppRagCustomAdvisor(loveAppVectorStore, "单身"))
                 // 应用增强检索服务（云知识库服务）
                 //.advisors(loveAppRagCloudAdvisor)
                 //应用增强检索服务（PgVector服务）

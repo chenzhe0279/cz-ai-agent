@@ -18,6 +18,12 @@ public class LoveAppVectorStoreConfig {
     @Resource
     private LoveAppDocumentLoader loveAppDocumentLoader;
 
+    @Resource
+    private MyTokenTextSplitter myTokenTextSplitter;
+
+    @Resource
+    private MyKeywordEnricher myKeywordEnricher;
+
     /**
      * 创建并配置一个基于内存的向量存储（VectorStore），用于 RAG 检索增强生成。
      * 该方法会加载本地 Markdown 文件，利用嵌入模型将文档内容转换为向量并存入向量存储中，
@@ -32,8 +38,12 @@ public class LoveAppVectorStoreConfig {
         SimpleVectorStore simpleVectorStore = SimpleVectorStore.builder(dashscopeEmbeddingModel).build();
         //获取markdown文件
         List<Document> documents = loveAppDocumentLoader.loadMarkDowns();
+        //自主切分
+        //List<Document> splitDocuemnts = myTokenTextSplitter.splitCustomized(documents);
+        // 自动补充关键词元信息
+        List<Document> enrichedDocuments = myKeywordEnricher.enrichDocuments(documents);
         // 将文档数据写入向量存储，完成向量化索引
-        simpleVectorStore.add(documents);
+        simpleVectorStore.add(enrichedDocuments);
         return simpleVectorStore;
     }
 }

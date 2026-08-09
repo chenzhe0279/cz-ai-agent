@@ -2,10 +2,10 @@ spring:
   application:
     name: cz-ai-agent
     # 数据库配置
-  datasource:
-    url: jdbc:postgresql://pgm-bp1wke216ju0z6v0fo.rwlb.rds.aliyuncs.com:5432/cz_ai_agent
-    username: czAgent
-    password: Qnmd985211
+#  datasource:
+#    url: jdbc:postgresql://pgm-bp1wke216ju0z6v0fo.rwlb.rds.aliyuncs.com:5432/cz_ai_agent
+#    username: czAgent
+#    password: Qnmd985211
   ai:
     vectorstore:
       pgvector:
@@ -13,11 +13,11 @@ spring:
         dimensions: 1536
         distance-type: COSINE_DISTANCE
         max-document-batch-size: 10000 # Optional: Maximum number of documents per batch
-#  datasource:
-#    driver-class-name: com.mysql.cj.jdbc.Driver
-#    url: jdbc:mysql://localhost:3306/yu_picture
-#    username: root
-#    password: 123456
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/yu_picture
+    username: root
+    password: 123456
   # 默认加载的配置文件是application-local.yml
   profiles:
     active: local

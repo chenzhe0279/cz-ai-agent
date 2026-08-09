@@ -53,12 +53,15 @@ public class LoveAppDocumentLoader {
             for (Resource resource : resources) {
                 //获取markdown文件名
                 String fileName = resource.getFilename();
+                // 提取文档倒数第 3 和第 2 个字作为标签
+                String status = fileName.substring(fileName.length() - 6, fileName.length() - 4);
                 // 构建 Markdown 读取配置：按水平分割线拆分为多个 Document，排除代码块和引用块，并附加文件名元数据
                 MarkdownDocumentReaderConfig config = MarkdownDocumentReaderConfig.builder()
                         .withHorizontalRuleCreateDocument(true)
                         .withIncludeCodeBlock(false)
                         .withIncludeBlockquote(false)
                         .withAdditionalMetadata("filename", fileName)
+                        .withAdditionalMetadata("status", status)
                         .build();
                 // 使用配置解析当前 Markdown 文件，并将结果合并到文档列表中
                 MarkdownDocumentReader markdownDocumentReader = new MarkdownDocumentReader(resource, config);
