@@ -7,4 +7,8 @@ spring:
       chat:
         options:
           model: qwen-plus
+baidu:
+  translate:
+    app-id: 20260810002663166
+    security-key: sOxY9A_3TSxHwNNN0b6p
 

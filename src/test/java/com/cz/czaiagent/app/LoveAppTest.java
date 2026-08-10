@@ -3,6 +3,7 @@ package com.cz.czaiagent.app;
 import cn.hutool.core.lang.UUID;
 import com.cz.czaiagent.chatmemory.MysqlChatMemory;
 import com.cz.czaiagent.rag.GitHubDocumentReader;
+import com.cz.czaiagent.rag.TranslationQueryTransformer;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.rag.Query;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -132,6 +134,17 @@ class LoveAppTest {
             System.out.println("元数据：" + doc.getMetadata());
             System.out.println("---");
         }
+    }
+
+    @Resource
+    private TranslationQueryTransformer translationQueryTransformer;
+    @Test
+    void testTranslationQueryTransformer() {
+        String query = "如何拓展社交圈？";
+        Query transQuery = new Query(query);
+        Query transform = translationQueryTransformer.transform(transQuery);
+        System.out.println("原始问题：" + query);
+        System.out.println("翻译后问题：" + transform.text());
     }
 }
 
