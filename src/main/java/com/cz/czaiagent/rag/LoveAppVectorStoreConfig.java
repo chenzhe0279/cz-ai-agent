@@ -41,9 +41,9 @@ public class LoveAppVectorStoreConfig {
         //自主切分
         //List<Document> splitDocuemnts = myTokenTextSplitter.splitCustomized(documents);
         // 自动补充关键词元信息
-        List<Document> enrichedDocuments = myKeywordEnricher.enrichDocuments(documents);
+        //List<Document> enrichedDocuments = myKeywordEnricher.enrichDocuments(documents);
         // 将文档数据写入向量存储，完成向量化索引
-        simpleVectorStore.add(enrichedDocuments);
+        simpleVectorStore.add(documents);
         return simpleVectorStore;
     }
 }

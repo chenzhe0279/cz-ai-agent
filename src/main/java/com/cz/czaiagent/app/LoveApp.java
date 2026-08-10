@@ -4,6 +4,7 @@ import com.cz.czaiagent.advisor.ForbiddenWordAdvisor;
 import com.cz.czaiagent.advisor.MyLoggerAdvisor;
 import com.cz.czaiagent.chatmemory.MysqlChatMemory;
 import com.cz.czaiagent.demo.rag.QueryRewriter;
+import com.cz.czaiagent.rag.LoveAppCompositeDocumentRetriever;
 import com.cz.czaiagent.rag.LoveAppRagCloudAdvisorConfig;
 import com.cz.czaiagent.rag.LoveAppRagCustomAdvisorFactory;
 import com.cz.czaiagent.utils.PromptTemplate;
@@ -17,7 +18,13 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.rag.Query;
+import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
+import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.Filter;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -118,6 +125,8 @@ public class LoveApp {
     private VectorStore pgVectorVectorStore;
 
     @Resource
+    private JdbcTemplate jdbcTemplate;
+    @Resource
     private QueryRewriter queryRewriter;
     public String doChatWithRag(String message, String chatId) {
         String rewriteMessage = queryRewriter.rewrite(message);
@@ -134,7 +143,8 @@ public class LoveApp {
                 .advisors(new MyLoggerAdvisor())
                 //应用RAG 知识库问答
                 //.advisors(new QuestionAnswerAdvisor(loveAppVectorStore))
-                .advisors(LoveAppRagCustomAdvisorFactory.createLoveAppRagCustomAdvisor(loveAppVectorStore, "单身"))
+                // 使用自定义RAG顾问，传入向量库并限定检索范围为"已婚"状态
+                .advisors(LoveAppRagCustomAdvisorFactory.createLoveAppRagCustomAdvisor(loveAppVectorStore,"单身"))
                 // 应用增强检索服务（云知识库服务）
                 //.advisors(loveAppRagCloudAdvisor)
                 //应用增强检索服务（PgVector服务）
@@ -146,5 +156,61 @@ public class LoveApp {
         return content;
     }
 
+
+    /**
+     * 降级搜索，优先使用向量库检索，无结果时自动降级查询 MySQL
+     * @param message 用户输入
+     * @param chatId 会话ID
+     * @return AI回复文本
+     */
+    public String doChatWithFallbackSearch(String message, String chatId,String status) {
+        // 手动构建向量库检索器（绕过 Spring AI M6 版 RetrievalAugmentationAdvisor 的已知 Bug）
+        
+        // 1. 构建过滤表达式：限定只检索状态为"单身"的文档数据
+        Filter.Expression expression = new FilterExpressionBuilder()
+                .eq("status", status) // 设置元数据过滤条件，key为"status"，value为"单身"
+                .build(); // 生成最终的过滤表达式对象
+        
+        // 2. 构建向量库文档检索器 (VectorStoreDocumentRetriever)
+        DocumentRetriever vectorRetriever = VectorStoreDocumentRetriever.builder()
+                .vectorStore(loveAppVectorStore) // 指定使用的向量数据库实例
+                .filterExpression(expression)    // 应用上一步构建的元数据过滤表达式，缩小检索范围
+                .similarityThreshold(0.5)        // 设置相似度阈值，仅返回相似度得分 >= 0.5 的文档，过滤掉相关性较低的结果
+                .topK(3)                         // 设置返回的最相关文档数量（Top-K），这里限制最多返回 3 条结果
+                .build(); // 完成检索器的构建
+
+        // 使用组合检索器：优先向量库，无结果时自动降级查询 MySQL
+        DocumentRetriever fallBackSearchRetriever = new LoveAppCompositeDocumentRetriever(vectorRetriever, jdbcTemplate, status);
+
+        // 手动执行检索
+        List<Document> documents = fallBackSearchRetriever.retrieve(new Query(message));
+
+        // 构建上下文：检索到文档则拼入用户消息，否则返回拒答提示
+        String userMessage;
+        if (documents != null && !documents.isEmpty()) {
+            StringBuilder context = new StringBuilder();
+            context.append("以下是从知识库中检索到的相关内容，请基于这些内容回答用户的问题：\n\n");
+            for (int i = 0; i < documents.size(); i++) {
+                context.append("【内容").append(i + 1).append("】\n");
+                context.append(documents.get(i).getText()).append("\n\n");
+            }
+            context.append("用户的问题：").append(message);
+            userMessage = context.toString();
+        } else {
+            userMessage = "请回复用户：抱歉，我只能回答恋爱相关的问题，别的没办法帮到您哦。用户原始问题：" + message;
+        }
+
+        ChatResponse chatResponse = chatClient
+                .prompt()
+                .user(userMessage)
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                .advisors(new MyLoggerAdvisor())
+                .call()
+                .chatResponse();
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("content: {}", content);
+        return content;
+    }
 }
 
