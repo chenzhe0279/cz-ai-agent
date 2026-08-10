@@ -2,12 +2,14 @@ package com.cz.czaiagent.app;
 
 import cn.hutool.core.lang.UUID;
 import com.cz.czaiagent.chatmemory.MysqlChatMemory;
+import com.cz.czaiagent.rag.GitHubDocumentReader;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.document.Document;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -118,6 +120,18 @@ class LoveAppTest {
         String status = "已婚";
         String answer = loveApp.doChatWithFallbackSearch(message,chatId,status);
         Assertions.assertNotNull(answer);
+    }
+
+    @Resource
+    private GitHubDocumentReader gitHubDocumentReader;
+    @Test
+    void testGitHubDocumentReader() {
+        List<Document> documents = gitHubDocumentReader.readRepository("spring-projects", "spring-ai");
+        for (Document doc : documents) {
+            System.out.println("内容预览：" + doc.getText().substring(0, Math.min(200, doc.getText().length())));
+            System.out.println("元数据：" + doc.getMetadata());
+            System.out.println("---");
+        }
     }
 }
 
