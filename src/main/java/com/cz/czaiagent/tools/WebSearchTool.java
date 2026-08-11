@@ -1,0 +1,61 @@
+package com.cz.czaiagent.tools;
+
+import cn.hutool.http.HttpUtil;
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Component
+public class WebSearchTool {
+
+    // SearchAPI 的搜索接口地址
+    private static final String SEARCH_API_URL = "https://www.searchapi.io/api/v1/search";
+    @Value("${search-api.api-key}")
+    private  String apiKey;
+
+    /*public WebSearchTool(String apiKey) {
+        this.apiKey = apiKey;
+    }*/
+
+    @Tool(description = "Search for information from Baidu Search Engine")
+    public String searchWeb(
+            @ToolParam(description = "Search query keyword") String query) {
+        Map<String, Object> paramMap = new HashMap<>();
+        paramMap.put("q", query);
+        paramMap.put("api_key", apiKey);
+        paramMap.put("engine", "baidu");
+        try {
+            String response = HttpUtil.get(SEARCH_API_URL, paramMap);
+            // 取出返回结果的前 5 条
+            JSONObject jsonObject = JSONUtil.parseObj(response);
+            // 提取 organic_results 部分
+            JSONArray organicResults = jsonObject.getJSONArray("organic_results");
+            if (organicResults == null || organicResults.isEmpty()) {
+                return "未搜索到相关结果，API 返回: " + response;
+            }
+            int end = Math.min(organicResults.size(), 5);
+            List<Object> objects = organicResults.subList(0, end);
+            // 拼接搜索结果为字符串，只保留 title、link、snippet 三个字段
+            String result = objects.stream().map(obj -> {
+                JSONObject tmpJSONObject = (JSONObject) obj;
+                JSONObject filtered = new JSONObject();
+                filtered.set("title", tmpJSONObject.getStr("title"));
+                filtered.set("link", tmpJSONObject.getStr("link"));
+                filtered.set("displayed_link", tmpJSONObject.getStr("displayed_link"));
+                return filtered.toString();
+            }).collect(Collectors.joining("\n"));
+            return result;
+        } catch (Exception e) {
+            return "Error searching Baidu: " + e.getMessage();
+        }
+    }
+}

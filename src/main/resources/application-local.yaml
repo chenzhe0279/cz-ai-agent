@@ -11,4 +11,6 @@ baidu:
   translate:
     app-id: 20260810002663166
     security-key: sOxY9A_3TSxHwNNN0b6p
-
+# 第三方服务 API 配置
+search-api:
+  api-key: ZbZK7yBvk3Ls39kuGrED3tsg
