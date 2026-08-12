@@ -17,10 +17,10 @@ public class WebSearchToolTest {
     private  WebSearchTool webSearchTool;
     @Test
     public void testSearchWeb() {
-        //WebSearchTool tool = new WebSearchTool();
+        WebSearchTool tool = new WebSearchTool(searchApiKey);
         String query = "程序员鱼皮编程导航 codefather.cn";
-        //String result = tool.searchWeb(query);
-        String result = webSearchTool.searchWeb(query);
+        String result = tool.searchWeb(query);
+        //String result = webSearchTool.searchWeb(query);
         assertNotNull(result);
     }
 }

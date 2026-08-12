@@ -14,17 +14,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@Component
+/**
+ * 联网搜索工具
+ */
 public class WebSearchTool {
 
     // SearchAPI 的搜索接口地址
     private static final String SEARCH_API_URL = "https://www.searchapi.io/api/v1/search";
-    @Value("${search-api.api-key}")
-    private  String apiKey;
 
-    /*public WebSearchTool(String apiKey) {
+    private final String apiKey;
+
+    public WebSearchTool(String apiKey) {
         this.apiKey = apiKey;
-    }*/
+    }
 
     @Tool(description = "Search for information from Baidu Search Engine")
     public String searchWeb(
@@ -53,9 +55,13 @@ public class WebSearchTool {
                 filtered.set("displayed_link", tmpJSONObject.getStr("displayed_link"));
                 return filtered.toString();
             }).collect(Collectors.joining("\n"));
-            return result;
+            return stripNonBmpCharacters(result);
         } catch (Exception e) {
             return "Error searching Baidu: " + e.getMessage();
         }
+    }
+
+    private String stripNonBmpCharacters(String text) {
+        return text.replaceAll("[^\\u0000-\\uFFFF]", "");
     }
 }
