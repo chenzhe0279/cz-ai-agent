@@ -7,6 +7,18 @@ spring:
       chat:
         options:
           model: qwen-plus
+  # 邮件发送配置
+  mail:
+    host: smtp.163.com
+    port: 465
+    username: 17771873239@163.com
+    password: EFuvHFv7XA6S9xsP
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
 baidu:
   translate:
     app-id: 20260810002663166
@@ -14,3 +26,4 @@ baidu:
 # 第三方服务 API 配置
 search-api:
   api-key: ZbZK7yBvk3Ls39kuGrED3tsg
+
