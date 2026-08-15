@@ -56,7 +56,7 @@ public class PDFGenerationTool {
     /*@Resource
     private ObjectStorageService objectStorageService; // 注入对象存储服务（如阿里云OSS、MinIO）
 
-    @Tool(description = "生成 PDF 文件并上传至对象存储，返回可访问的 URL")
+    @Tool(description = "生成 PDF 文件并上传至对象存储，返回可访问的 URL",,returnDirect = true)
     public String generatePDF(
             @ToolParam(description = "PDF 文件名（不含路径）") String fileName,
             @ToolParam(description = "PDF 内容") String content) {
