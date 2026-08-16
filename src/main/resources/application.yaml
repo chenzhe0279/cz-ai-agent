@@ -15,8 +15,12 @@ spring:
         max-document-batch-size: 10000 # Optional: Maximum number of documents per batch
     mcp:
       client:
-        stdio:
-          servers-configuration: classpath:mcp-image-servers.json
+        sse:
+          connections:
+            server1:
+              url: http://localhost:8127
+#        stdio:
+#          servers-configuration: classpath:mcp-image-servers.json
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver

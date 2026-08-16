@@ -1,6 +1,7 @@
 package com.cz.czaiagent.app;
 
 import cn.hutool.core.lang.UUID;
+import com.cz.czaiagent.CzAiAgentApplication;
 import com.cz.czaiagent.chatmemory.MysqlChatMemory;
 import com.cz.czaiagent.rag.GitHubDocumentReader;
 import com.cz.czaiagent.rag.TranslationQueryTransformer;

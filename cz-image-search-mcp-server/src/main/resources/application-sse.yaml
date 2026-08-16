@@ -7,3 +7,4 @@ spring:
         type: SYNC
         # sse
         stdio: false
+
