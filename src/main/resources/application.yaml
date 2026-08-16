@@ -16,8 +16,7 @@ spring:
     mcp:
       client:
         stdio:
-          servers-configuration: classpath:mcp-servers.json
-          init-timeout: 60
+          servers-configuration: classpath:mcp-image-servers.json
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
