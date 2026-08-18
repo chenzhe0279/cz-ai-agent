@@ -9,7 +9,9 @@
         "-jar",
         "cz-image-search-mcp-server/target/cz-image-search-mcp-server-0.0.1-SNAPSHOT.jar"
       ],
-      "env": {}
+      "env": {
+        "IMAGE_SEARCH_LIMIT": "5"
+      }
     }
   }
 }

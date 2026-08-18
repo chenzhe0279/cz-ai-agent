@@ -30,7 +30,9 @@ public class ImageSearchTool {
     @Tool(description = "search image from web")
     public String searchImage(@ToolParam(description = "Search query keyword") String query) {
         try {
-            return String.join(",", searchMediumImages(query));
+            String limitStr = System.getenv("IMAGE_SEARCH_LIMIT");
+            int limit = (limitStr != null && !limitStr.isEmpty()) ? Integer.parseInt(limitStr) : 10;
+            return String.join(",", searchMediumImages(query, limit));
         } catch (Exception e) {
             return "Error search image: " + e.getMessage();
         }
@@ -42,7 +44,7 @@ public class ImageSearchTool {
      * @param query
      * @return
      */
-    public List<String> searchMediumImages(String query) {
+    public List<String> searchMediumImages(String query, int limit) {
         // 设置请求头（包含API密钥）
         Map<String, String> headers = new HashMap<>();
         headers.put("Authorization", API_KEY);
@@ -50,6 +52,8 @@ public class ImageSearchTool {
         // 设置请求参数（仅包含query，可根据文档补充page、per_page等参数）
         Map<String, Object> params = new HashMap<>();
         params.put("query", query);
+        params.put("per_page", limit);
+
 
         // 发送 GET 请求
         String response = HttpUtil.createGet(API_URL)

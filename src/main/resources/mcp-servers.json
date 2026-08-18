@@ -1,6 +1,5 @@
 {
   "mcpServers": {
-    "_comment": "下面的这个是高德地图MCP服务配置，因费用问题，先忽略加载，停止使用",
     "amap-maps": {
       "command": "D:/soft/nodeJS/npx.cmd",
       "args": [
