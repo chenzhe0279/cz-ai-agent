@@ -236,4 +236,15 @@ public class ToolCallAgent extends ReActAgent{
         // 最终会被拼接到 "Step N: xxx" 格式中作为本轮循环的输出
         return results;
     }
+
+    /**
+     * 清理资源：先执行父类的清理（消息上下文、状态、步数），
+     * 再置空本类持有的最后一轮大模型响应引用
+     */
+    @Override
+    protected void cleanup() {
+        super.cleanup();
+        this.toolCallChatResponse = null;
+        log.info(getName() + " 的工具调用响应引用已清理");
+    }
 }

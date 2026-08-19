@@ -105,8 +105,14 @@ public abstract class BaseAgent {
 
     /**
      * 清理资源
+     * 在 run() 的 finally 中调用，无论正常结束还是异常都会执行：
+     * 1. 清空消息上下文，释放本轮对话占用的内存
+     * 2. 重置状态为 IDLE、步数归零，使单例智能体可以被再次 run()
      */
     protected void cleanup() {
-        // 子类可以重写此方法来清理资源
+        messageList.clear();
+        currentStep = 0;
+        state = AgentState.IDLE;
+        log.info(name + " 资源清理完成，状态已重置为 IDLE");
     }
 }
