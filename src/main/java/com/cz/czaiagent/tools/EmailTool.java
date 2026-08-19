@@ -6,6 +6,9 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+
+import java.io.File;
+
 /**
  *  * 邮件发送工具
  *  * 功能说明：为 AI Agent 提供邮件发送能力，支持两种邮件格式：
@@ -119,6 +122,41 @@ public class EmailTool {
         } catch (Exception e) {
             // 捕获异常并返回错误信息
             return "Error sending HTML email: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 发送带附件的邮件
+     *
+     * @param to             收件人邮箱地址
+     * @param subject        邮件主题
+     * @param body           邮件正文内容
+     * @param attachmentPath 附件文件的本地路径，例如 PDF 文件的完整路径
+     * @return 发送结果描述
+     */
+    @Tool(description = "Send an email with a file attachment to a recipient")
+    public String sendEmailWithAttachment(
+            @ToolParam(description = "Recipient email address") String to,
+            @ToolParam(description = "Email subject") String subject,
+            @ToolParam(description = "Email body content") String body,
+            @ToolParam(description = "Local file path of the attachment to send") String attachmentPath) {
+        try {
+            File attachmentFile = new File(attachmentPath);
+            if (!attachmentFile.exists()) {
+                return "Error sending email: attachment file not exist: " + attachmentPath;
+            }
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(body);
+            // 添加附件，使用文件本身的名称作为附件名
+            helper.addAttachment(attachmentFile.getName(), attachmentFile);
+            mailSender.send(message);
+            return "Email with attachment sent successfully to: " + to;
+        } catch (Exception e) {
+            return "Error sending email with attachment: " + e.getMessage();
         }
     }
 }

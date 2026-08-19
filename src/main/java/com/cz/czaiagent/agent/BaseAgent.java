@@ -26,7 +26,7 @@ public abstract class BaseAgent {
     // 核心属性
     private String name;
 
-    //提示词
+    //系统预设提示词
     private String systemPrompt;
 
     //下一步提示词

@@ -1,7 +1,9 @@
 package com.cz.czaiagent.tools;
 
+import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbacks;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -39,7 +41,7 @@ public class ToolRegistration {
     /**
      * Spring 邮件发送器，用于 EmailTool 发送邮件
      */
-    //private final JavaMailSender mailSender;
+    //private JavaMailSender mailSender;
 
     /**
      * Spring JDBC 模板，用于 DatabaseTool 执行 SQL
@@ -64,13 +66,15 @@ public class ToolRegistration {
      * <p>
      * 工作流程：
      * 第一步：逐个创建工具实例（无依赖的直接 new，有依赖的传入构造参数）
-     * 第二步：通过 ToolCallbacks.from() 把所有工具打包成 ToolCallback 数组
-     * 第三步：Spring 容器会自动将这个数组注册为 Bean，供 AI Agent 使用
+     * 第二步：通过 ToolCallbacks.from() 把所有本地工具打包成 ToolCallback 数组
+     * 第三步：合并 MCP 客户端提供的远程工具（如图片搜索 searchImage）
+     * 第四步：Spring 容器会自动将合并后的数组注册为 Bean，供 AI Agent 使用
      *
-     * @return 包含所有工具的 ToolCallback 数组
+     * @param mcpToolCallbackProvider MCP 客户端自动配置的工具提供者（参数由 Spring 自动注入）
+     * @return 包含本地工具 + MCP 工具的 ToolCallback 数组
      */
     @Bean
-    public ToolCallback[] allTools() {
+    public ToolCallback[] allTools(ToolCallbackProvider mcpToolCallbackProvider , JavaMailSender mailSender) {
         // 无外部依赖的工具，直接 new 即可
         FileOperationTool fileOperationTool = new FileOperationTool();
         WebSearchTool webSearchTool = new WebSearchTool(searchApiKey);
@@ -79,20 +83,32 @@ public class ToolRegistration {
         TerminalOperationTool terminalOperationTool = new TerminalOperationTool();
         PDFGenerationTool pdfGenerationTool = new PDFGenerationTool();
         // 需要 Spring Bean 依赖的工具，通过构造函数注入
-        //EmailTool emailTool = new EmailTool(mailSender, mailUsername);
+        EmailTool emailTool = new EmailTool(mailSender, mailUsername);
         DateTimeTool dateTimeTool = new DateTimeTool();
         //DatabaseTool databaseTool = new DatabaseTool(jdbcTemplate);
-        // 将所有工具统一注册为 ToolCallback 数组
-        return ToolCallbacks.from(
+        // 将所有本地工具统一注册为 ToolCallback 数组
+        TerminateTool terminateTool = new TerminateTool();
+        ToolCallback[] localTools = ToolCallbacks.from(
             fileOperationTool,
             webSearchTool,
             webScrapingTool,
             resourceDownloadTool,
             terminalOperationTool,
             pdfGenerationTool,
-            //emailTool,
+            emailTool,
+            terminateTool,
             dateTimeTool
             //databaseTool
         );
+        // 获取 MCP 客户端提供的远程工具（如图片搜索 searchImage）
+        // 注意：getToolCallbacks() 返回 FunctionCallback[]，需手动拷贝合并到 ToolCallback[] 中
+        FunctionCallback[] mcpTools = mcpToolCallbackProvider.getToolCallbacks();
+        // 初始化合并后的工具数组，总容量为本地工具数量与 MCP 远程工具数量之和
+        ToolCallback[] mergedTools = new ToolCallback[localTools.length + mcpTools.length];
+        // 将本地工具数组 (localTools) 的全部元素，从源索引 0 开始拷贝到目标数组 (mergedTools) 的起始位置 (索引 0)
+        System.arraycopy(localTools, 0, mergedTools, 0, localTools.length);
+        // 将 MCP 工具数组 (mcpTools) 的全部元素，从源索引 0 开始拷贝到目标数组 (mergedTools) 中紧接本地工具之后的位置 (索引 localTools.length)
+        System.arraycopy(mcpTools, 0, mergedTools, localTools.length, mcpTools.length);
+        return mergedTools;
     }
 }
