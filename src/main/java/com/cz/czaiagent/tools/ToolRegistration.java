@@ -82,6 +82,8 @@ public class ToolRegistration {
         ResourceDownloadTool resourceDownloadTool = new ResourceDownloadTool();
         TerminalOperationTool terminalOperationTool = new TerminalOperationTool();
         PDFGenerationTool pdfGenerationTool = new PDFGenerationTool();
+        // 创建人类交互工具实例：无外部依赖（内部直接使用 System.in），直接 new 即可
+        AskHumanTool askHumanTool = new AskHumanTool();
         // 需要 Spring Bean 依赖的工具，通过构造函数注入
         EmailTool emailTool = new EmailTool(mailSender, mailUsername);
         DateTimeTool dateTimeTool = new DateTimeTool();
@@ -97,7 +99,9 @@ public class ToolRegistration {
             pdfGenerationTool,
             emailTool,
             terminateTool,
-            dateTimeTool
+            dateTimeTool,
+            // 注册人类交互工具，注册后大模型即可在 think() 阶段自主决定调用 askHuman
+            askHumanTool
             //databaseTool
         );
         // 获取 MCP 客户端提供的远程工具（如图片搜索 searchImage）

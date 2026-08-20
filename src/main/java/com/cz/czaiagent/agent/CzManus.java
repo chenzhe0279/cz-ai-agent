@@ -35,6 +35,8 @@ public class CzManus extends ToolCallAgent{
         String SYSTEM_PROMPT = """  
                 You are CzManus, an all-capable AI assistant, aimed at solving any task presented by the user.  
                 You have various tools at your disposal that you can call upon to efficiently complete complex requests.  
+                When you lack critical information, face ambiguous requirements, or need user preferences or confirmation, \
+                use the askHuman tool to consult the user instead of guessing blindly.  
                 """;
         // 设置到父类 BaseAgent 的 systemPrompt 属性
         // think() 中通过 .system(getSystemPrompt()) 注入到 Prompt
