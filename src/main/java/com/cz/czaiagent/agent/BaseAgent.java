@@ -2,6 +2,7 @@ package com.cz.czaiagent.agent;
 
 import com.cz.czaiagent.agent.model.AgentState;
 
+import com.cz.czaiagent.service.HumanInteractionService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,6 +13,7 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -70,6 +72,25 @@ public abstract class BaseAgent {
     // Memory（需要自主维护会话上下文）
     private List<Message> messageList = new ArrayList<>();
 
+    private HumanInteractionService humanInteractionService;
+
+    private transient SseEmitter streamEmitter;
+
+    protected void sendSseEvent(String eventName, String content) {
+        if (streamEmitter == null || content == null || content.isBlank()) {
+            return;
+        }
+
+        try {
+            streamEmitter.send(
+                    SseEmitter.event()
+                            .name(eventName)
+                            .data(content)
+            );
+        } catch (IOException e) {
+            log.warn("SSE 推送事件失败，event={}", eventName, e);
+        }
+    }
     /**
      * 运行代理
      *
@@ -169,6 +190,8 @@ public abstract class BaseAgent {
 
             // 前置校验全部通过，将智能体状态修改为 RUNNING（运行中）
             state = AgentState.RUNNING;
+            // 绑定当前 Agent 异步线程与 SSE 会话，供 askHuman 工具发送事件。
+            humanInteractionService.openSession(emitter);
             // 将用户的输入提示词封装为 UserMessage 并添加到消息上下文列表中，作为大模型的首轮输入
             messageList.add(new UserMessage(userPrompt));
 
@@ -228,6 +251,7 @@ public abstract class BaseAgent {
                     emitter.completeWithError(ex);
                 }
             } finally {
+                humanInteractionService.closeCurrentSession();
                 // 无论执行成功还是失败，最终都必须执行清理逻辑，释放资源并重置智能体状态
                 this.cleanup();
             }
@@ -236,7 +260,7 @@ public abstract class BaseAgent {
         // 立即返回 SseEmitter 对象给 Spring MVC 框架，由框架负责维持 HTTP 长连接并推送数据
         return emitter;
     }
-    
+
     /**
      * 执行单个步骤
      *

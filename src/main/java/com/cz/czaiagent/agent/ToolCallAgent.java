@@ -130,6 +130,8 @@ public class ToolCallAgent extends ReActAgent{
         AssistantMessage assistantMessage = chatResponse.getResult().getOutput();
         // 获取大模型返回的文本内容（可能是最终回答，也可能是"我要调用XX工具"的说明）
         String result = assistantMessage.getText();
+        // 将模型正文实时发往前端；原先它只会被记录在后端日志。
+        sendSseEvent("assistant_message", result);
         // 获取大模型决定要调用的工具列表
         // 如果大模型认为不需要工具，这个列表为空
         List<AssistantMessage.ToolCall> toolCallList = assistantMessage.getToolCalls();

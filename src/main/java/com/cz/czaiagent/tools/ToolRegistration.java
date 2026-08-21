@@ -1,14 +1,13 @@
 package com.cz.czaiagent.tools;
 
+import com.cz.czaiagent.service.HumanInteractionService;
 import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallbackProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
 
 /**
@@ -74,7 +73,7 @@ public class ToolRegistration {
      * @return 包含本地工具 + MCP 工具的 ToolCallback 数组
      */
     @Bean
-    public ToolCallback[] allTools(ToolCallbackProvider mcpToolCallbackProvider , JavaMailSender mailSender) {
+    public ToolCallback[] allTools(ToolCallbackProvider mcpToolCallbackProvider , JavaMailSender mailSender, HumanInteractionService humanInteractionService) {
         // 无外部依赖的工具，直接 new 即可
         FileOperationTool fileOperationTool = new FileOperationTool();
         WebSearchTool webSearchTool = new WebSearchTool(searchApiKey);
@@ -83,7 +82,7 @@ public class ToolRegistration {
         TerminalOperationTool terminalOperationTool = new TerminalOperationTool();
         PDFGenerationTool pdfGenerationTool = new PDFGenerationTool();
         // 创建人类交互工具实例：无外部依赖（内部直接使用 System.in），直接 new 即可
-        AskHumanTool askHumanTool = new AskHumanTool();
+        AskHumanTool askHumanTool = new AskHumanTool(humanInteractionService);
         // 需要 Spring Bean 依赖的工具，通过构造函数注入
         EmailTool emailTool = new EmailTool(mailSender, mailUsername);
         DateTimeTool dateTimeTool = new DateTimeTool();

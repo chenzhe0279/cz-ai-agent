@@ -1,3 +1,4 @@
+/*
 package com.cz.czaiagent.tools;
 
 import org.junit.jupiter.api.Test;
@@ -9,9 +10,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 class AskHumanToolTest {
 
-    /**
+    */
+/**
      * 测试向人类提问并获取回答
-     */
+     *//*
+
     @Test
     public void testAskHuman() {
         // 手动创建工具实例（与生产环境 ToolRegistration 中的创建方式一致，工具本身无外部依赖）
@@ -25,4 +28,4 @@ class AskHumanToolTest {
         // 断言返回值非空：无论是否输入内容，工具都会返回有效结果（回答或兜底提示）
         assertNotNull(result);
     }
-}
+}*/

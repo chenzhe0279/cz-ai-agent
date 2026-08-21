@@ -6,7 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest
-public class PDFGenerationToolTest {
+public class PDFGenerationTool1Test {
 
     @Test
     public void testGeneratePDF() {

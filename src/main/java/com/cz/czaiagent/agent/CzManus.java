@@ -2,6 +2,7 @@ package com.cz.czaiagent.agent;
 
 
 import com.cz.czaiagent.advisor.MyLoggerAdvisor;
+import com.cz.czaiagent.service.HumanInteractionService;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
@@ -16,7 +17,7 @@ public class CzManus extends ToolCallAgent{
     // 构造方法，Spring 会自动注入以下两个依赖：
     //   - allTools：Spring 容器中所有注册的工具（如 DatabaseTool、EmailTool 等）
     //   - dashscopeChatModel：阿里云通义千问的 ChatModel 实例
-    public CzManus(ToolCallback[] allTools, ChatModel dashscopeChatModel){
+    public CzManus(ToolCallback[] allTools, ChatModel dashscopeChatModel, HumanInteractionService humanInteractionService){
         // 调用父类 ToolCallAgent 的构造方法，传入工具列表
         // 父类构造方法中会初始化：
         //   - availableTools = allTools
@@ -29,6 +30,7 @@ public class CzManus extends ToolCallAgent{
         // 例如日志会打印 "yuManus的思考: xxx"、"yuManus选择了 N 个工具来使用"
         this.setName("czManus");
 
+        this.setHumanInteractionService(humanInteractionService);
         // ========== 系统提示词 ==========
         // 定义 Agent 的角色和行为规范，在每轮对话中作为 system 消息发送给大模型
         // 告诉大模型它是谁、能做什么
