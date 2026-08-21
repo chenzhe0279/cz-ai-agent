@@ -31,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
@@ -72,7 +73,7 @@ public class LoveApp {
     }
 
     /**
-     * 普通对话
+     * 普通对话（支持多轮对话，同步）
      * @param message 用户输入
      * @param chatId 会话ID
      * @return AI回复文本
@@ -82,12 +83,28 @@ public class LoveApp {
                 .prompt()
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
-                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1))
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 .call()
                 .chatResponse();
         String content = chatResponse.getResult().getOutput().getText();
         log.info("content:{}", content);
         return content;
+    }
+
+    /**
+     * 普通对话（支持多轮对话，SSE流式传输）
+     * @param message 用户输入
+     * @param chatId 会话ID
+     * @return AI回复文本
+     */
+    public Flux<String> doChatByStream(String message, String chatId) {
+        return chatClient
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                .stream()
+                .content();
     }
 
     record LoveReport(String title, List<String> suggestions) {}
@@ -111,7 +128,7 @@ public class LoveApp {
                 .system(systemPrompt)
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
-                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1))
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 .call()
                 .entity(LoveReport.class);
         log.info("loveReport:{}", loveReport);

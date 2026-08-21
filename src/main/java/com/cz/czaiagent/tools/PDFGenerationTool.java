@@ -29,11 +29,12 @@ public class PDFGenerationTool {
      */
     private static final Pattern IMAGE_LINE_PATTERN = Pattern.compile("^\\s*\\[图片[:：](.+)]\\s*$");
 
-    @Tool(description = "Generate a PDF file with given content. " +
+    @Tool(description = "Generate a PDF file with given content, SUPPORTS embedding images. " +
+            "Use this tool when the content needs to contain images. " +
             "To embed an image at a specific position, write an independent line in the content with format: " +
             "[图片:image local file path]. " +
             "For example, after writing one location's introduction, immediately add a line [图片:path] to show its image.")
-    public String generatePDF(
+    public String generatePDFWithImage(
             @ToolParam(description = "Name of the file to save the generated PDF") String fileName,
             @ToolParam(description = "Content to be included in the PDF. Images are referenced inline as [图片:local file path], and will be inserted at the exact position they appear") String content) {
         String fileDir = FileConstant.FILE_SAVE_DIR + "/pdf";
@@ -79,6 +80,40 @@ public class PDFGenerationTool {
         if (buffer.length() > 0) {
             document.add(new Paragraph(buffer.toString()).setFirstLineIndent(24));
             buffer.setLength(0);
+        }
+    }
+
+    @Tool(description = "Generate a plain-text PDF file with given content, WITHOUT any image support. " +
+            "Use this tool only when the content contains pure text and does not need images. " +
+            "If the content needs to embed images, use generatePDFWithImage instead.", returnDirect = false)
+    public String generatePDF(
+            @ToolParam(description = "Name of the file to save the generated PDF") String fileName,
+            @ToolParam(description = "Plain text content to be included in the PDF") String content) {
+        String fileDir = FileConstant.FILE_SAVE_DIR + "/pdf";
+        String filePath = fileDir + "/" + fileName;
+        try {
+            // 创建目录
+            FileUtil.mkdir(fileDir);
+            // 创建 PdfWriter 和 PdfDocument 对象
+            try (PdfWriter writer = new PdfWriter(filePath);
+                 PdfDocument pdf = new PdfDocument(writer);
+                 Document document = new Document(pdf)) {
+                // 自定义字体（需要人工下载字体文件到特定目录）
+//                String fontPath = Paths.get("src/main/resources/static/fonts/simsun.ttf")
+//                        .toAbsolutePath().toString();
+//                PdfFont font = PdfFontFactory.createFont(fontPath,
+//                        PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
+                // 使用内置中文字体
+                PdfFont font = PdfFontFactory.createFont("STSongStd-Light", "UniGB-UCS2-H");
+                document.setFont(font);
+                // 创建段落
+                Paragraph paragraph = new Paragraph(content);
+                // 添加段落并关闭文档
+                document.add(paragraph);
+            }
+            return "PDF generated successfully to: " + filePath;
+        } catch (IOException e) {
+            return "Error generating PDF: " + e.getMessage();
         }
     }
 

@@ -10,9 +10,11 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 抽象基础代理类，用于管理代理状态和执行流程。
@@ -125,6 +127,116 @@ public abstract class BaseAgent {
         }
     }
 
+
+    /**
+     * 运行代理（流式输出）
+     *
+     * @param userPrompt 用户提示词
+     * @return 执行结果
+     */
+    public SseEmitter runStream(String userPrompt){
+        // 创建 SseEmitter 实例，设置超时时间为 300000 毫秒（5分钟），防止长时间无数据推送导致连接超时断开
+        SseEmitter emitter = new SseEmitter(300000L);
+
+        // 使用 CompletableFuture.runAsync 将智能体的执行逻辑放入异步线程中运行，避免阻塞当前 HTTP 请求主线程
+        CompletableFuture.runAsync(() -> {
+            // 使用 try-catch 块捕获前置校验过程中可能抛出的异常，确保 SSE 连接能被正确关闭
+            try {
+                // 校验智能体当前状态，只有处于 IDLE（空闲）状态才能启动运行
+                if (this.state != AgentState.IDLE) {
+                    // 若状态不正确，通过 SSE 向前端发送错误提示信息
+                    emitter.send("错误：无法从状态运行代理: " + this.state);
+                    // 正常完成 SSE 连接，通知客户端流已结束
+                    emitter.complete();
+                    // 终止当前异步线程的后续执行
+                    return;
+                }
+                // 校验用户输入的提示词是否为空（使用 Jsoup 的 StringUtil 工具类判断）
+                if (StringUtil.isBlank(userPrompt)) {
+                    // 若提示词为空，通过 SSE 向前端发送错误提示信息
+                    emitter.send("错误：不能使用空提示词运行代理");
+                    // 正常完成 SSE 连接
+                    emitter.complete();
+                    // 终止当前异步线程的后续执行
+                    return;
+                }
+            } catch (Exception e) {
+                // 若前置校验或发送消息时发生异常，以错误状态关闭 SSE 连接，并将异常信息传递给客户端
+                emitter.completeWithError(e);
+                // 发生异常后直接返回，不再执行后续的智能体运行逻辑
+                return;
+            }
+
+            // 前置校验全部通过，将智能体状态修改为 RUNNING（运行中）
+            state = AgentState.RUNNING;
+            // 将用户的输入提示词封装为 UserMessage 并添加到消息上下文列表中，作为大模型的首轮输入
+            messageList.add(new UserMessage(userPrompt));
+
+            // 开始智能体的多步骤循环执行逻辑
+            try {
+                // 循环执行，条件为：当前步数未达到最大步数限制，且智能体状态未变为 FINISHED（已完成）
+                for (int i = 0; i < maxSteps && state != AgentState.FINISHED; i++) {
+                    // 计算当前是第几步（从 1 开始计数，便于日志和前端展示）
+                    int stepNumber = i + 1;
+                    // 更新智能体的当前执行步数属性
+                    currentStep = stepNumber;
+                    // 记录当前正在执行的步骤日志
+                    log.info("Executing step " + stepNumber + "/" + maxSteps);
+                    
+                    // 调用子类实现的具体单步执行逻辑（如思考、调用工具等），获取本步的执行结果
+                    String stepResult = step();
+                    
+                    // 每一步执行完毕后，检查智能体是否陷入了重复输出的死循环
+                    // 此时本步产生的消息已写入 messageList，能基于最新上下文进行准确判断
+                    if (isStuck()) {
+                        // 若检测到陷入循环，则调用处理方法注入干预提示词，引导大模型更换策略
+                        handleStuckState();
+                    }
+                    
+                    // 将步骤序号和单步执行结果拼接成格式化的字符串，用于向前端展示
+                    String result = "Step " + stepNumber + ": " + stepResult;
+                    
+                    // （已废弃）原本用于保存所有步骤结果的列表，流式输出下无需在内存中累积
+                    // List<String> results = new ArrayList<>();
+
+                    // 通过 SSE 将当前步骤的执行结果实时推送给客户端
+                    emitter.send(result);
+                }
+                
+                // 循环结束后，检查是否是因为达到了最大步数限制而退出循环
+                if (currentStep >= maxSteps) {
+                    // 若是达到最大步数，将智能体状态强制修改为 FINISHED
+                    state = AgentState.FINISHED;
+                    // 通过 SSE 向前端推送达到最大步数的提示信息
+                    emitter.send("执行结束: 达到最大步骤 (" + maxSteps + ")");
+                }
+                
+                // 所有步骤正常执行完毕，正常关闭 SSE 连接，通知客户端流式数据已全部发送完成
+                emitter.complete();
+            } catch (Exception e) {
+                // 若在执行过程中发生任何异常，将智能体状态修改为 ERROR（错误）
+                state = AgentState.ERROR;
+                // 记录详细的错误日志，便于后续排查问题
+                log.error("执行智能体失败", e);
+                try {
+                    // 尝试通过 SSE 向前端推送具体的错误信息
+                    emitter.send("执行错误: " + e.getMessage());
+                    // 推送完成后，正常关闭 SSE 连接
+                    emitter.complete();
+                } catch (Exception ex) {
+                    // 若在推送错误信息或关闭连接时再次发生异常（例如连接已断开），则以错误状态强制关闭连接
+                    emitter.completeWithError(ex);
+                }
+            } finally {
+                // 无论执行成功还是失败，最终都必须执行清理逻辑，释放资源并重置智能体状态
+                this.cleanup();
+            }
+        });
+        
+        // 立即返回 SseEmitter 对象给 Spring MVC 框架，由框架负责维持 HTTP 长连接并推送数据
+        return emitter;
+    }
+    
     /**
      * 执行单个步骤
      *

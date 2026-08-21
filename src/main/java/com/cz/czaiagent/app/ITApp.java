@@ -1,3 +1,4 @@
+/*
 package com.cz.czaiagent.app;
 
 import jakarta.annotation.Resource;
@@ -14,10 +15,12 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
+*/
 /**
  * 使用 Spring AI 框架的原生 ChatModel 来构建一个带上下文记忆的多轮对话
  * 并借助 CommandLineRunner 在 Spring Boot 启动后自动执行。
- */
+ *//*
+
 @Component
 public class ITApp implements CommandLineRunner {
 
@@ -30,9 +33,11 @@ public class ITApp implements CommandLineRunner {
     // 每轮对话都会追加新的 SystemMessage / UserMessage / AssistantMessage
     private List<Message> messages = new ArrayList<>();
 
-    /**
+    */
+/**
      * CommandLineRunner 接口的唯一方法，Spring 启动完成后自动调用
-     */
+     *//*
+
     @Override
     public void run(String... args) throws Exception {
         // ========== 第一轮对话 ==========
@@ -66,3 +71,4 @@ public class ITApp implements CommandLineRunner {
 
     }
 }
+*/
