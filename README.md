@@ -2,7 +2,7 @@
 
 基于 **Java 21、Spring Boot 3、Spring AI** 的 AI Agent 工程。主服务提供恋爱咨询对话（LoveApp）、多步 ReAct 超级智能体（CzManus）、丰富的本地工具调用、RAG 检索增强与 Human-in-the-loop（人机交互）能力，并通过 MCP（stdio）集成图片检索子服务 `cz-image-search-mcp-server`。仓库还包含一个 Vue 3 前端 `cz-ai-agent-frontend`，以 SSE 流式方式与后端对话，并支持智能体运行过程中向前端弹窗提问。
 
-> 当前代码整体处于**教学/演示/原型阶段**：认证（Sa-Token / AuthCheck / AuthAdvisor）相关代码基本处于注释状态，AI 接口未做鉴权与限流；仓库中已提交了真实凭据（详见[安全注意事项](#安全注意事项)），对外部署前必须处理。
+> 当前代码整体处于**教学/演示/原型阶段**：认证（Sa-Token / AuthCheck / AuthAdvisor）相关代码基本处于注释状态，AI 接口未做鉴权与限流；部分配置文件曾包含真实凭据，其中 `application-local.yaml` 已移出版本控制（详见[安全注意事项](#安全注意事项)），对外部署前必须处理。
 
 ## 仓库组成
 
@@ -57,7 +57,7 @@
 │   └── constant/               # FileConstant（tmp 目录）、UserConstant
 ├── src/main/resources/
 │   ├── application.yaml        # 主配置：端口/上下文、数据源、MCP Client、pgvector 参数、文档配置
-│   ├── application-local.yaml  # 本地密钥（DashScope / 邮件 / 百度翻译 / 搜索 API）——已提交，需轮换
+│   ├── application-local.yaml  # 本地密钥（DashScope / 邮件 / 百度翻译 / 搜索 API）——已加入 .gitignore 并取消追踪，clone 后需自行创建
 │   ├── document/               # 恋爱知识库 Markdown（单身 / 恋爱 / 已婚）
 │   ├── prompts/                # 恋爱专家与恋爱报告提示词模板
 │   ├── mcp-image-servers.json  # MCP stdio 子服务启动配置（实际启用）
@@ -146,7 +146,7 @@ mysql -u root -p < sql/create_table.sql
 
 ### 3. 配置本地密钥
 
-主服务 `application.yaml` 默认激活 `local` Profile。请在 `src/main/resources/application-local.yaml` 中填入自己的凭据（当前文件中的真实密钥已提交，需先轮换，见[安全注意事项](#安全注意事项)）：
+主服务 `application.yaml` 默认激活 `local` Profile。本地密钥文件 `src/main/resources/application-local.yaml` 已加入 `.gitignore` 并取消 git 追踪，**clone 仓库后不会存在，需按下面的模板自行创建**；切勿把真实密钥提交到版本库：
 
 ```yaml
 spring:
@@ -221,7 +221,7 @@ npm run dev
 
 | 配置项 | 位置 | 说明 |
 | --- | --- | --- |
-| `spring.profiles.active` | `application.yaml` | 默认 `local`，加载本地密钥文件 |
+| `spring.profiles.active` | `application.yaml` | 默认 `local`，加载本地密钥文件（`application-local.yaml` 已 gitignore，需本地自行创建） |
 | `spring.datasource.*` | `application.yaml` | MySQL 连接（默认 `localhost:3306/yu_picture`，账号密码为开发值，已提交） |
 | `server.port` / `server.servlet.context-path` | `application.yaml` | `8123` / `/api` |
 | `spring.ai.dashscope.api-key` | `application-local.yaml` | 通义千问 API Key |
@@ -314,14 +314,13 @@ npm run dev
 
 > 以下问题在对外发布前必须处理。
 
-- **真实凭据已提交到版本库**，涉及文件（具体值不在 README 中展示）：
-  - `src/main/resources/application-local.yaml`：DashScope Key、163 邮箱账号与授权码、百度翻译 AppID/密钥、SearchAPI Key；
+- **`application-local.yaml` 已移出版本控制**：已加入 `.gitignore`（同时覆盖 `.yml` / `.yaml` 两种后缀）并执行 `git rm --cached`，后续提交不会再包含该文件。但该文件**曾进入过提交历史**，其中的密钥可能已暴露，仍建议**撤销/轮换**（DashScope Key、163 邮箱账号与授权码、百度翻译 AppID/密钥、SearchAPI Key）。
+- **其余真实凭据仍被版本库追踪**（具体值不在 README 中展示），涉及文件：
   - `src/main/java/com/cz/czaiagent/demo/invoke/TestApiKey.java`：DashScope Key；
   - `cz-image-search-mcp-server/src/main/resources/application.yaml`：Pexels API Key；
   - `src/main/resources/mcp-servers.json`：高德地图 API Key；
   - `src/main/resources/application.yaml`：MySQL 默认账号密码（及被注释的 PostgreSQL 连接串）。
   请立即**撤销/轮换**这些密钥，并迁移到环境变量、密钥管理服务或未提交的本地配置。
-- `.gitignore` 中写的是 `application-local.yml`，而实际文件名为 `application-local.yaml`，导致本地密钥文件**未被忽略**；请统一后缀并确认从版本库移除。
 - AI 接口目前**无鉴权、无限流**；`AuthAdvisor`、`AuthInterceptor`、Sa-Token 相关代码均处于注释状态。
 - `TerminalOperationTool` 可执行任意终端命令、`FileOperationTool` 可读写文件；对外提供 Agent 能力前应增加命令白名单、路径约束、权限隔离与审计。
 - `mcp-image-servers.json` 的 stdio 配置由主服务直接执行 JAR，部署时需确认 JAR 来源可信、路径可控。
@@ -339,7 +338,7 @@ npm run dev
 ## 后续规划
 
 - 为恋爱咨询与智能体接口补充鉴权（启用 Sa-Token / `AuthCheck`）、限流与审计日志。
-- 清理已提交的凭据，将 `application-local.yaml` 移出版本控制，全面切换环境变量/密钥服务。
+- `application-local.yaml` 已移出版本控制；继续清理其余已提交的凭据（`TestApiKey.java`、`mcp-servers.json`、MCP 子服务 `application.yaml`、主 `application.yaml` 数据源），必要时重写 git 历史清除旧密钥，并全面切换环境变量/密钥服务。
 - 将对话记忆切换为 MySQL 持久化，并设计会话清理策略。
 - 打通 PostgreSQL + pgvector 持久化向量库，替代启动时内存建库的方案。
 - 完善用户体系（注册/登录/VIP 兑换接口已建模但未暴露）。
