@@ -74,20 +74,48 @@ public abstract class BaseAgent {
 
     private HumanInteractionService humanInteractionService;
 
+    /**
+     * SSE (Server-Sent Events) 推送器实例。
+     * <p>
+     * 设计意图与上下文说明：
+     * 1. 核心作用：用于在智能体流式运行期间（如 runStream 模式），向客户端实时推送自定义事件（例如工具调用状态、人工交互请求等）。
+     * 2. transient 关键字：BaseAgent 及其子类可能需要参与序列化（如存入 Redis 或 HttpSession），而 SseEmitter 封装了底层的 HTTP 响应流，
+     *    属于不可序列化的网络资源。使用 transient 修饰可避免序列化时抛出 NotSerializableException。
+     * 3. 封装性：声明为 private，外部及子类必须通过下方的 sendSseEvent 方法进行推送，确保推送逻辑的统一管理和异常隔离。
+     */
     private transient SseEmitter streamEmitter;
 
+    /**
+     * 向客户端发送 SSE (Server-Sent Events) 事件。
+     * <p>
+     * 详细说明：
+     * - 访问控制为 protected：允许子类（如具体的 Agent 实现、自定义工具类）在需要时调用，向客户端推送业务事件。
+     * - 事件规范：遵循 W3C SSE 标准，通过 event 字段区分事件类型，data 字段承载具体数据。前端可通过 EventSource 监听特定事件名。
+     *
+     * @param eventName 事件名称（如 "tool_call", "ask_human", "thinking" 等），用于前端分类处理
+     * @param content   事件携带的数据内容，通常为 JSON 序列化后的字符串或纯文本
+     */
     protected void sendSseEvent(String eventName, String content) {
+        // 1. 前置防御性校验：
+        // - 若 streamEmitter 为 null（例如在非流式的 run() 同步模式下，或未正确绑定会话），则跳过推送。
+        // - 若 content 为 null 或空白字符串，推送无意义且可能引发前端解析异常，直接拦截。
         if (streamEmitter == null || content == null || content.isBlank()) {
             return;
         }
 
         try {
+            // 2. 构建并执行 SSE 推送：
+            // 利用 Spring 的 SseEmitter.event() 链式调用，精确指定事件名 (name) 和负载数据 (data)。
             streamEmitter.send(
                     SseEmitter.event()
                             .name(eventName)
                             .data(content)
             );
         } catch (IOException e) {
+            // 3. 异常捕获与降级处理：
+            // 当客户端主动断开连接、网络波动或服务器超时导致写入失败时，底层会抛出 IOException。
+            // 此处仅记录 warn 级别日志（保留完整异常堆栈以便排查），绝不向上抛出异常。
+            // 设计考量：SSE 推送属于"旁路"的交互/反馈功能，不应因为推送失败而中断智能体核心的思考与执行主流程。
             log.warn("SSE 推送事件失败，event={}", eventName, e);
         }
     }
