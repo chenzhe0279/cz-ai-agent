@@ -74,8 +74,9 @@ public class LoveApp {
 
     /**
      * 普通对话（支持多轮对话，同步）
+     *
      * @param message 用户输入
-     * @param chatId 会话ID
+     * @param chatId  会话ID
      * @return AI回复文本
      */
     public String doChat(String message, String chatId) {
@@ -93,8 +94,9 @@ public class LoveApp {
 
     /**
      * 普通对话（支持多轮对话，SSE流式传输）
+     *
      * @param message 用户输入
-     * @param chatId 会话ID
+     * @param chatId  会话ID
      * @return AI回复文本
      */
     public Flux<String> doChatByStream(String message, String chatId) {
@@ -107,12 +109,14 @@ public class LoveApp {
                 .content();
     }
 
-    record LoveReport(String title, List<String> suggestions) {}
+    record LoveReport(String title, List<String> suggestions) {
+    }
 
     /**
      * AI恋爱报告功能，实战结构化输出
-     * @param message 用户输入
-     * @param chatId 会话ID
+     *
+     * @param message  用户输入
+     * @param chatId   会话ID
      * @param username 用户名，用于报告标题
      * @return 恋爱报告
      */
@@ -139,8 +143,8 @@ public class LoveApp {
     @Resource
     private VectorStore loveAppVectorStore;
 
-    @Resource
-    private Advisor loveAppRagCloudAdvisor;
+    //@Resource
+    //private Advisor loveAppRagCloudAdvisor;
 
     @Resource
     private VectorStore pgVectorVectorStore;
@@ -149,6 +153,7 @@ public class LoveApp {
     private JdbcTemplate jdbcTemplate;
     @Resource
     private QueryRewriter queryRewriter;
+
     public String doChatWithRag(String message, String chatId) {
         String rewriteMessage = queryRewriter.rewrite(message);
         ChatResponse chatResponse = chatClient
@@ -165,7 +170,7 @@ public class LoveApp {
                 //应用RAG 知识库问答
                 //.advisors(new QuestionAnswerAdvisor(loveAppVectorStore))
                 // 使用自定义RAG顾问，传入向量库并限定检索范围为"已婚"状态
-                .advisors(LoveAppRagCustomAdvisorFactory.createLoveAppRagCustomAdvisor(loveAppVectorStore,"单身"))
+                .advisors(LoveAppRagCustomAdvisorFactory.createLoveAppRagCustomAdvisor(loveAppVectorStore, "单身"))
                 // 应用增强检索服务（云知识库服务）
                 //.advisors(loveAppRagCloudAdvisor)
                 //应用增强检索服务（PgVector服务）
@@ -180,18 +185,19 @@ public class LoveApp {
 
     /**
      * 降级搜索，优先使用向量库检索，无结果时自动降级查询 MySQL
+     *
      * @param message 用户输入
-     * @param chatId 会话ID
+     * @param chatId  会话ID
      * @return AI回复文本
      */
-    public String doChatWithFallbackSearch(String message, String chatId,String status) {
+    public String doChatWithFallbackSearch(String message, String chatId, String status) {
         // 手动构建向量库检索器（绕过 Spring AI M6 版 RetrievalAugmentationAdvisor 的已知 Bug）
-        
+
         // 1. 构建过滤表达式：限定只检索状态为"单身"的文档数据
         Filter.Expression expression = new FilterExpressionBuilder()
                 .eq("status", status) // 设置元数据过滤条件，key为"status"，value为"单身"
                 .build(); // 生成最终的过滤表达式对象
-        
+
         // 2. 构建向量库文档检索器 (VectorStoreDocumentRetriever)
         DocumentRetriever vectorRetriever = VectorStoreDocumentRetriever.builder()
                 .vectorStore(loveAppVectorStore) // 指定使用的向量数据库实例

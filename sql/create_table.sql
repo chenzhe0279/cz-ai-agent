@@ -175,3 +175,27 @@ INSERT INTO love_knowledge (content, status, tags) VALUES
 
 INSERT INTO love_knowledge (content,status, tags) VALUES
     ('已婚夫妻要保持感情新鲜感。即使工作再忙，也要抽出时间约会和交流。可以尝试一起运动、旅行、学习新技能。不要因为生活琐事忽略了彼此的感受，定期安排二人世界很重要。', '已婚','感情,新鲜感,约会,二人世界,亲密,疏远,关系');
+
+-- ============================================================================
+-- 用户体系扩展：VIP 兑换码表 + 初始管理员账号
+-- （如需单独执行，可直接复制本段）
+-- ============================================================================
+
+-- VIP 兑换码表
+create table if not exists vip_code
+(
+    id            bigint auto_increment comment 'id' primary key,
+    code          varchar(64)  not null comment '兑换码',
+    duration_days int          not null comment '兑换后会员时长（天）',
+    is_used       tinyint      default 0 not null comment '是否已使用：0-未使用 1-已使用',
+    used_by       bigint       null comment '使用人用户 id',
+    used_at       datetime     null comment '使用时间',
+    created_by    bigint       null comment '创建人用户 id（管理员）',
+    create_time   datetime     default CURRENT_TIMESTAMP comment '创建时间',
+    UNIQUE KEY uk_code (code)
+) comment 'VIP 兑换码' collate = utf8mb4_unicode_ci;
+
+-- 初始管理员账号：admin / admin123456（BCrypt 加密，首次登录后请尽快修改密码）
+-- 账号已存在时自动跳过，不会覆盖已有账号
+insert ignore into user (userAccount, userPassword, userName, userRole)
+values ('admin', '$2a$10$BUSJLRttY7xbW4Z4JRabPOYSXucGGTVwamIiEMIXWDy69GvAS6GpW', '管理员', 'admin');

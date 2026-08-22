@@ -1,8 +1,14 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { streamChat } from './services/chat'
 import { http } from './services/http'
+import { API_BASE_URL } from './services/http'
+import { auth, initAuth, logout as authLogout } from './store/auth'
+import LoginView from './components/LoginView.vue'
+import RegisterView from './components/RegisterView.vue'
+import ProfileView from './components/ProfileView.vue'
 
+const view = ref('home') // home | login | register | profile | chat
 const currentApp = ref(null)
 const draft = ref('')
 const isStreaming = ref(false)
@@ -20,6 +26,13 @@ const apps = [
   { id: 'manus', icon: '✦', avatar: '智', name: 'AI 超级智能体', description: '把复杂的问题，转化为清晰的行动方案。', color: 'violet', tag: 'AUTONOMOUS AGENT' },
 ]
 const app = computed(() => apps.find((item) => item.id === currentApp.value))
+const userDisplayName = computed(() => auth.user?.userName || auth.user?.userAccount || '未登录')
+const userInitial = computed(() => (auth.user?.userName || auth.user?.userAccount || 'U').slice(0, 1).toUpperCase())
+const userAvatarUrl = computed(() => {
+  const url = auth.user?.userAvatar
+  if (!url) return ''
+  return url.startsWith('http') ? url : `${API_BASE_URL}${url}`
+})
 const welcome = computed(() => currentApp.value === 'love'
   ? '你好，我是你的恋爱军师。今天有什么心事想和我聊聊？'
   : '你好，我是 AI 超级智能体。告诉我你的目标，我会协助你一步步完成。')
@@ -40,7 +53,27 @@ function createChatId() {
     : `chat-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-async function openApp(id) {
+onMounted(async () => {
+  await initAuth()
+  window.addEventListener('auth:unauthorized', handleUnauthorized)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('auth:unauthorized', handleUnauthorized)
+})
+
+function handleUnauthorized() {
+  auth.user = null
+  if (view.value === 'chat' || view.value === 'profile') {
+    view.value = 'login'
+  }
+}
+
+function openApp(id) {
+  if (id === 'manus' && !auth.user) {
+    view.value = 'login'
+    return
+  }
   currentApp.value = id
   draft.value = ''
   isStreaming.value = false
@@ -48,15 +81,28 @@ async function openApp(id) {
   pendingStepContent.value = ''
   humanQuestion.value = null
   if (id === 'love') loveChatId.value = createChatId()
-  await scrollToBottom()
+  view.value = 'chat'
+  scrollToBottom()
 }
 
 function backHome() {
+  view.value = 'home'
   currentApp.value = null
   messages.value = []
+  isStreaming.value = false
+  humanQuestion.value = null
+}
+
+async function handleLogout() {
+  await authLogout()
+  backHome()
 }
 
 async function send() {
+  if (currentApp.value === 'manus' && !auth.user) {
+    view.value = 'login'
+    return
+  }
   const content = draft.value.trim()
   if (!content || isStreaming.value) return
   draft.value = ''
@@ -68,8 +114,6 @@ async function send() {
 
   try {
     await streamChat(currentApp.value, content, loveChatId.value, ({ event, data }) => {
-      // 恋爱大师接口返回的是连续文本流：所有 SSE 分片必须写入同一个气泡，
-      // 让 Vue 随分片刷新，从而形成打字机效果。
       if (currentApp.value === 'love') {
         if (activeAssistantMessageIndex.value === null) {
           messages.value.push({ role: 'assistant', content: '' })
@@ -88,10 +132,8 @@ async function send() {
           pendingStepContent.value += '\nAI 需要补充信息，但提问内容解析失败。'
         }
       } else if (event === 'assistant_message') {
-        // AI 正文属于即将完成的步骤，等收到 Step N 再一起放入独立气泡。
         pendingStepContent.value += `${pendingStepContent.value ? '\n\n' : ''}${data}`
       } else if (/^Step\s+\d+\s*:/.test(data.trim())) {
-        // 每个后端 Step 都强制创建一个新的 AI 气泡，绝不和其他 Step 合并。
         const contentForStep = [pendingStepContent.value, data]
           .filter(Boolean)
           .join(currentApp.value === 'manus' ? '\n\n\n' : '\n\n')
@@ -100,7 +142,6 @@ async function send() {
         pendingStepContent.value = ''
         scrollToBottom()
       } else {
-        // 非步骤事件（例如异常或结束提示）单独显示，避免混入任何 Step。
         messages.value.push({ role: 'assistant', content: data })
         activeAssistantMessageIndex.value = messages.value.length - 1
         scrollToBottom()
@@ -126,10 +167,8 @@ async function submitHumanAnswer() {
   if (!answer || !humanQuestion.value || isSubmittingHumanAnswer.value) return
   isSubmittingHumanAnswer.value = true
   try {
-    // 后端会在原 SSE 连接继续推送；后续内容将按新的 Step 自动生成独立气泡。
     messages.value.push({ role: 'user', content: `补充信息：${answer}` })
     await scrollToBottom()
-
     await http.post('/ai/manus/human-answer', {
       requestId: humanQuestion.value.requestId,
       answer,
@@ -151,30 +190,72 @@ async function scrollToBottom() {
 </script>
 
 <template>
-  <main class="shell" :class="currentApp ? `app-${currentApp}` : 'app-home'">
-    <section v-if="!currentApp" class="home">
+  <!-- 首页 -->
+  <main v-if="view === 'home'" class="shell app-home">
+    <section class="home">
       <div class="space-field" aria-hidden="true"><i v-for="n in 42" :key="n"></i></div>
-      <header class="site-nav"><div class="brand"><span class="brand-mark">✦</span><span>CZ AI</span><small>WORKSPACE</small></div><span class="nav-status"><b></b> SYSTEM ONLINE</span></header>
+      <header class="site-nav">
+        <div class="brand"><span class="brand-mark">✦</span><span>CZ AI</span><small>WORKSPACE</small></div>
+        <div class="nav-user">
+          <template v-if="auth.user">
+            <button class="nav-chip" @click="view = 'profile'">
+              <span class="nav-chip-avatar">
+                <img v-if="userAvatarUrl" :src="userAvatarUrl" alt="" />
+                <span v-else>{{ userInitial }}</span>
+              </span>
+              <span>{{ userDisplayName }}</span>
+              <em v-if="auth.user.userRole !== 'user'">{{ auth.user.userRole }}</em>
+            </button>
+            <button class="nav-link" @click="handleLogout">退出</button>
+          </template>
+          <template v-else>
+            <button class="nav-link" @click="view = 'login'">登录</button>
+            <button class="nav-link primary" @click="view = 'register'">注册</button>
+          </template>
+        </div>
+      </header>
       <div class="home-copy">
         <p class="eyebrow">PERSONAL INTELLIGENCE, EXPANDED</p>
         <h1>驶入未知，<em>与星辰同频。</em></h1>
-        <p>选择一位 AI 伙伴，让灵感、情感与行动在此刻汇聚。</p>
+        <p>{{ auth.user ? `欢迎回来，${userDisplayName}。选择一位 AI 伙伴，让灵感、情感与行动在此刻汇聚。` : '游客可直接体验「AI 恋爱大师」，登录后解锁「AI 超级智能体」。' }}</p>
       </div>
       <div class="app-grid">
         <button v-for="item in apps" :key="item.id" class="app-card" :class="item.color" @click="openApp(item.id)">
           <span class="card-orbit"></span><span class="card-icon">{{ item.icon }}</span>
-          <span class="card-content"><em>{{ item.tag }}</em><strong>{{ item.name }}</strong><small>{{ item.description }}</small></span>
+          <span class="card-content">
+            <em>{{ item.tag }}</em><strong>{{ item.name }}</strong><small>{{ item.description }}</small>
+            <small v-if="item.id === 'manus' && !auth.user" class="card-lock">✦ 登录后可用</small>
+          </span>
           <span class="card-arrow">↗</span>
         </button>
       </div>
       <footer class="site-footer"><span>© {{ new Date().getFullYear() }} CZ AI WORKSPACE</span><span>智能对话 · 探索无限可能</span></footer>
     </section>
+  </main>
 
-    <section v-else class="chat-page">
+  <!-- 登录 / 注册 -->
+  <LoginView v-else-if="view === 'login'" @success="view = 'home'" @switch-register="view = 'register'" @back="view = 'home'" />
+  <RegisterView v-else-if="view === 'register'" @success="view = 'home'" @switch-login="view = 'login'" @back="view = 'home'" />
+
+  <!-- 个人中心 -->
+  <ProfileView v-else-if="view === 'profile'" @back="view = 'home'" @logout="view = 'home'" />
+
+  <!-- 聊天 -->
+  <main v-else-if="view === 'chat'" class="shell" :class="`app-${currentApp}`">
+    <section class="chat-page">
       <header class="chat-header">
         <button class="back" aria-label="返回首页" @click="backHome">←</button>
         <div class="chat-title"><span :class="['small-icon', app.color]">{{ app.avatar }}</span><div><strong>{{ app.name }}</strong><small><i></i> 在线 · 随时为你服务</small></div></div>
-        <span class="secure">✦ PRIVATE SESSION</span>
+        <div class="chat-user">
+          <button class="nav-chip" @click="view = 'profile'">
+            <span class="nav-chip-avatar">
+              <img v-if="userAvatarUrl" :src="userAvatarUrl" alt="" />
+              <span v-else>{{ userInitial }}</span>
+            </span>
+            <span>{{ userDisplayName }}</span>
+          </button>
+          <button class="nav-link" @click="handleLogout">退出</button>
+        </div>
       </header>
       <div ref="chatBody" class="chat-body">
         <div class="intro"><span :class="['intro-icon', app.color]">{{ app.icon }}</span><p>{{ welcome }}</p><small v-if="currentApp === 'love'">会话 ID：{{ loveChatId }}</small></div>

@@ -1,9 +1,60 @@
 import axios from 'axios'
 
 export const API_BASE_URL = 'http://localhost:8123/api'
+export const TOKEN_KEY = 'cz_ai_token'
 
-// 供后续非流式接口复用；聊天 SSE 由 streamChat 读取浏览器响应流。
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setToken(token) {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token)
+  } else {
+    localStorage.removeItem(TOKEN_KEY)
+  }
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY)
+}
+
 export const http = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30_000,
 })
+
+// 请求拦截：自动携带 Sa-Token 令牌
+http.interceptors.request.use((config) => {
+  const token = getToken()
+  if (token) {
+    config.headers.satoken = token
+  }
+  return config
+})
+
+// 响应拦截：统一解包 BaseResponse，登录失效时通知全局
+http.interceptors.response.use(
+  (response) => {
+    const body = response.data
+    if (body && typeof body === 'object' && 'code' in body) {
+      if (body.code === 0) {
+        return body.data
+      }
+      if (body.code === 40100 || body.code === 40101) {
+        clearToken()
+        window.dispatchEvent(new CustomEvent('auth:unauthorized', { detail: body.message || '' }))
+      }
+      return Promise.reject(new Error(body.message || '请求失败'))
+    }
+    return body
+  },
+  (error) => {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      clearToken()
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+    }
+    const message = error.response?.data?.message || error.message || '网络请求失败'
+    return Promise.reject(new Error(message))
+  },
+)

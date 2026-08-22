@@ -1,32 +1,33 @@
 # cz-ai-agent
 
-基于 **Java 21、Spring Boot 3、Spring AI** 的 AI Agent 工程。主服务提供恋爱咨询对话（LoveApp）、多步 ReAct 超级智能体（CzManus）、丰富的本地工具调用、RAG 检索增强与 Human-in-the-loop（人机交互）能力，并通过 MCP（stdio）集成图片检索子服务 `cz-image-search-mcp-server`。仓库还包含一个 Vue 3 前端 `cz-ai-agent-frontend`，以 SSE 流式方式与后端对话，并支持智能体运行过程中向前端弹窗提问。
+基于 **Java 21、Spring Boot 3、Spring AI** 的 AI Agent 工程。主服务提供恋爱咨询对话（LoveApp）、多步 ReAct 超级智能体（CzManus）、丰富的本地工具调用、RAG 检索增强、Human-in-the-loop（人机交互）与完整的用户体系（注册/登录/个人中心/VIP/管理员），并通过 MCP（stdio）集成图片检索子服务 `cz-image-search-mcp-server`。仓库还包含一个 Vue 3 前端 `cz-ai-agent-frontend`，以 SSE 流式方式与后端对话，界面为宇宙星空主题。
 
-> 当前代码整体处于**教学/演示/原型阶段**：认证（Sa-Token / AuthCheck / AuthAdvisor）相关代码基本处于注释状态，AI 接口未做鉴权与限流；部分配置文件曾包含真实凭据，其中 `application-local.yaml` 已移出版本控制（详见[安全注意事项](#安全注意事项)），对外部署前必须处理。
+> 当前代码整体处于**教学/演示/原型阶段**：用户接口与超级智能体接口已接入 Sa-Token 登录鉴权（管理员接口另做角色校验），「AI 恋爱大师」允许游客直接使用，但**未做限流与审计**；部分配置文件曾包含真实凭据，其中 `application-local.yaml` 已移出版本控制（详见[安全注意事项](#安全注意事项)），对外部署前必须处理。
 
 ## 仓库组成
 
 | 子项目 | 说明 | 端口 |
 | --- | --- | --- |
-| `cz-ai-agent`（本目录） | Spring Boot 主服务：LoveApp 对话、CzManus 智能体、工具系统、RAG、MCP Client、SSE 接口 | `8123`，上下文路径 `/api` |
-| `cz-ai-agent-frontend` | Vue 3 + Vite 单页应用：聊天工作台（恋爱大师 / 超级智能体），SSE 流式渲染与人机交互弹窗 | `5173` |
+| `cz-ai-agent`（本目录） | Spring Boot 主服务：AI 对话、智能体、工具系统、RAG、用户体系、MCP Client、SSE 接口 | `8123`，上下文路径 `/api` |
+| `cz-ai-agent-frontend` | Vue 3 + Vite 单页应用：聊天工作台、登录/注册、个人中心（管理员面板），宇宙星空主题 | `5173` |
 | `cz-image-search-mcp-server` | 独立 MCP Server：基于 Pexels API 的图片搜索工具 `searchImage`，默认以 stdio 方式被主服务拉起 | SSE 模式 `8127`；stdio 模式无端口 |
 
 ## 功能特性
 
-- **恋爱大师（LoveApp）**：基于通义千问（DashScope）的恋爱咨询对话，支持多轮聊天记忆（当前默认使用 `InMemoryChatMemory`，另有 MySQL、文件两种实现）、结构化恋爱报告、RAG 检索增强，以及向量检索无果时降级查询 MySQL `love_knowledge` 表。
-- **超级智能体（CzManus）**：ReAct 多步推理代理，最大步数 30，具备思考-行动循环、循环检测与干预、资源清理，并通过 SSE 实时推送思考正文、步骤结果与人工提问事件。
+- **恋爱大师（LoveApp）**：基于通义千问（DashScope）的恋爱咨询对话，**游客可直接使用**；支持多轮聊天记忆（当前默认 `InMemoryChatMemory`，另有 MySQL、文件两种实现）、结构化恋爱报告、RAG 检索增强，以及向量检索无果时降级查询 MySQL `love_knowledge` 表。
+- **超级智能体（CzManus）**：ReAct 多步推理代理，**需登录后使用**；最大步数 30，具备思考-行动循环、循环检测与干预、资源清理，并通过 SSE 实时推送思考正文、步骤结果与人工提问事件。
 - **工具系统**：文件读写、网页搜索、网页抓取、资源下载、终端命令、PDF 生成（支持嵌入图片）、邮件发送（纯文本 / HTML / 附件）、日期时间、人工确认（`askHuman`）、任务终止；并自动合并 MCP 提供的远程工具（图片搜索）。
 - **人机交互（Human-in-the-loop）**：智能体缺失关键信息、需求不明确或需确认时，通过 `askHuman` 工具经 SSE 向前端推送提问事件，阻塞等待用户回答（180 秒超时，超时自动降级），实现可中断、可补充信息的交互式执行。
 - **RAG 检索增强**：启动时将 `src/main/resources/document/` 下的 Markdown 知识文档向量化到内存向量库（`SimpleVectorStore`），支持状态元数据过滤、LLM 查询改写、百度翻译查询转换、DashScope 云端知识库、向量库 + MySQL 组合检索降级等多种策略。
 - **MCP 集成**：主服务作为 MCP Client（stdio）拉起图片搜索子服务，并保留高德地图 MCP 示例配置；子服务同时支持 stdio 与 SSE 两种模式。
-- **基础设施**：统一响应/异常处理、全局 CORS、Knife4j / OpenAPI 接口文档、Long 型 JSON 精度保护、Sa-Token 依赖（未启用）、循环检测防呆机制。
+- **用户体系**：注册、登录（Sa-Token 令牌）、退出、个人中心（资料编辑 / 修改密码 / **本地图片上传头像**）、VIP 会员兑换（兑换码由管理员生成）、管理员用户管理（新增 / 删除 / 改角色 / 分页查询 / 生成兑换码）；`/user/**` 与 `/ai/manus/**` 需登录，管理员接口需 `admin` 角色。
+- **基础设施**：统一响应/异常处理、全局 CORS、Knife4j / OpenAPI 接口文档、Long 型 JSON 精度保护、Sa-Token 鉴权、循环检测防呆机制。
 
 ## 技术栈
 
 | 分类 | 组件 | 版本 |
 | --- | --- | --- |
-| 语言 / 构建 | Java、Maven（仓库自带 Wrapper 3.9.16） | 21 / 3.9+ |
+| 语言 / 构建 | Java、Maven（仓库自带 Wrapper） | 21 / 3.9.16 |
 | 后端框架 | Spring Boot（主服务） | 3.4.4 |
 | 后端框架 | Spring Boot（MCP 子服务） | 3.4.5 |
 | AI 框架 | Spring AI（Alibaba DashScope Starter / Ollama Starter / MCP Client / pgvector-store / markdown reader） | 1.0.0-M6 / M6.1 |
@@ -34,7 +35,7 @@
 | 其他 AI | LangChain4j（DashScope 社区模型） | 1.0.0-beta2 |
 | 数据库 | MySQL（默认库 `yu_picture`）、可选 PostgreSQL + pgvector（当前未启用） | MySQL 8.x |
 | 工具库 | Hutool、Jsoup、iText 9（PDF）、Spring Mail、Kryo（文件记忆序列化）、victools jsonschema（结构化输出） | 5.8.37 / 1.19.1 / 9.1.0 / 5.6.2 / 4.38.0 |
-| 文档 / 鉴权 | Knife4j（OpenAPI3）、Sa-Token（未启用） | 4.4.0 / 1.44.0 |
+| 文档 / 鉴权 | Knife4j（OpenAPI3）、Sa-Token（已启用：登录拦截 + `@SaCheckRole` 角色校验） | 4.4.0 / 1.44.0 |
 | 前端 | Vue 3、Vite、Axios（SSE 使用浏览器原生 `fetch` 流式读取） | 均未锁定版本（`latest`） |
 
 ## 项目结构
@@ -47,25 +48,34 @@
 │   ├── app/                    # LoveApp（恋爱大师业务入口，ITApp 演示类已注释）
 │   ├── advisor/                # ChatClient Advisor：日志、违禁词、Re2 重读、鉴权（后两者/鉴权未启用）
 │   ├── chatmemory/             # 聊天记忆：内存（默认）、MySQL、Kryo 文件三种实现
-│   ├── controller/             # AiController（AI 对话/智能体/人类回答）、HelthController（健康检查）
+│   ├── controller/             # AiController（AI 对话/智能体）、UserController（用户/鉴权）、FileController（头像文件）、HelthController（健康检查）
 │   ├── rag/                    # 文档加载、向量库、查询转换、组合检索、RAG Advisor 配置
-│   ├── service/                # HumanInteractionService（人机交互会话与答案唤醒）
+│   ├── service/                # HumanInteractionService（人机交互）、UserService/UserServiceImpl（用户）
 │   ├── tools/                  # 本地工具与统一注册 ToolRegistration
 │   ├── demo/                   # 大模型调用演示（HTTP / SDK / Spring AI / LangChain4j）与 RAG 演示
-│   ├── common/ exception/ model/ config/ annotation/ aop/
-│   │                           # 统一响应、异常处理、DTO/VO/枚举、CORS/JSON、鉴权注解与切面（未启用）
+│   ├── common/                 # BaseResponse、ResultUtils、PageRequest、DeleteRequest、PageResult
+│   ├── exception/              # ErrorCode、BusinessException、GlobalExceptionHandler、ThrowUtils
+│   ├── model/                  # entity/User、dto/user/*、vo/*（含 LoginResponse）、enums/UserRoleEnum
+│   ├── config/                 # CorsConfig、JsonConfig、SaTokenConfig（登录拦截）、StpInterfaceImpl（角色数据源）
+│   ├── annotation/ aop/        # @AuthCheck 注解与切面（未启用，可作 Sa-Token 之外的可选方案）
 │   └── constant/               # FileConstant（tmp 目录）、UserConstant
 ├── src/main/resources/
-│   ├── application.yaml        # 主配置：端口/上下文、数据源、MCP Client、pgvector 参数、文档配置
-│   ├── application-local.yaml  # 本地密钥（DashScope / 邮件 / 百度翻译 / 搜索 API）——已加入 .gitignore 并取消追踪，clone 后需自行创建
+│   ├── application.yaml        # 主配置：端口/上下文、数据源、MCP Client、Sa-Token、multipart、文档配置
+│   ├── application-local.yaml  # 本地密钥（DashScope / 邮件 / 百度翻译 / 搜索 API）——已 gitignore 并取消追踪，clone 后需自行创建
 │   ├── document/               # 恋爱知识库 Markdown（单身 / 恋爱 / 已婚）
 │   ├── prompts/                # 恋爱专家与恋爱报告提示词模板
 │   ├── mcp-image-servers.json  # MCP stdio 子服务启动配置（实际启用）
 │   └── mcp-servers.json        # 高德地图 MCP 示例配置（未被 application.yaml 引用）
-├── cz-ai-agent-frontend/       # Vue 3 + Vite 前端（src/ 源码 + dist/ 构建产物）
+├── cz-ai-agent-frontend/       # Vue 3 + Vite 前端
+│   ├── src/App.vue             # 视图入口：首页 / 登录 / 注册 / 个人中心 / 聊天
+│   ├── src/components/         # LoginView / RegisterView / ProfileView（含管理员面板与头像上传）
+│   ├── src/store/auth.js       # 全局登录态（token 与用户信息）
+│   ├── src/services/           # http.js（axios + token 拦截）、user.js、chat.js（SSE）
+│   ├── src/styles.css / styles-auth.css  # 基础样式 + 宇宙星空主题样式
+│   └── dist/                   # 生产构建产物（已提交）
 ├── cz-image-search-mcp-server/ # Pexels 图片搜索 MCP Server（stdio / SSE 双模式）
-├── sql/create_table.sql        # MySQL 建表脚本 + 恋爱知识示例数据
-├── tmp/                        # 运行时文件目录：file/ download/ pdf/ chat-memory/（已 gitignore）
+├── sql/create_table.sql        # MySQL 建表脚本 + 恋爱知识示例数据 + VIP 兑换码表 + 初始管理员
+├── tmp/                        # 运行时文件目录：file/ download/ pdf/ chat-memory/ avatar/（已 gitignore）
 └── src/test/                   # SpringBootTest 集成测试（部分依赖数据库/模型/外部 API）
 ```
 
@@ -95,7 +105,7 @@
 
 ### 3. 循环检测与干预
 
-`BaseAgent` 每一步执行后检测"最后一条非空助手消息"在更早助手消息中是否重复出现：`duplicateThreshold` 默认 `2`，即同一内容累计出现 3 次时判定陷入循环。触发后向下一步提示词前置注入干预文案（"观察到重复响应，请考虑采用新的策略…"），且每轮只注入一次，避免提示词无限膨胀；本轮结束后自动还原。
+`BaseAgent` 每一步执行后检测"最后一条非空助手消息"在更早助手消息中是否重复出现：`duplicateThreshold` 默认 `2`，即同一内容累计出现 3 次时判定陷入循环。触发后向下一步提示词前置注入干预文案，且每轮只注入一次，避免提示词无限膨胀；本轮结束后自动还原。
 
 ### 4. SSE 流式协议
 
@@ -126,6 +136,15 @@
 - **云端知识库**（`LoveAppRagCloudAdvisorConfig`）：DashScope 云端索引"恋爱大师"（`DashScopeDocumentRetriever`），当前在 `doChatWithRag` 中处于注释状态。
 - **pgvector**：`PgVectorVectorStoreConfig`（HNSW + 余弦距离 + 1536 维）整体被注释，主应用也排除了 `PgVectorStoreAutoConfiguration`，当前未启用。
 
+### 7. 用户鉴权机制
+
+- **登录与令牌**：注册/登录走公开接口；登录成功后返回 `{user, token}`，令牌默认有效期 30 天，前端保存在 `localStorage`，所有请求通过请求头 `satoken: <token>` 携带。
+- **登录拦截**：`SaTokenConfig` 注册 `SaInterceptor`，`/user/**` 与 `/ai/manus/**` 需要登录（`/user/register`、`/user/login` 放行，CORS 预检 `OPTIONS` 放行）；`/ai/love_app/**` 游客可访问。
+- **角色校验**：`StpInterfaceImpl` 从数据库读取用户角色，管理员接口通过 `@SaCheckRole("admin")` 校验（`/user/add`、`/user/delete`、`/user/update/role`、`/user/list`、`/user/vip/code/generate`）。
+- **密码安全**：注册/改密/管理员建号均使用 Hutool BCrypt 加盐哈希存储；修改密码后强制重新登录；管理员新建用户初始密码 `12345678`。
+- **会话管理**：删除用户或修改角色时调用 `StpUtil.kickout()` 强制被操作用户下线。
+- **错误码**：未登录返回 `40100`，无权限返回 `40101`（`GlobalExceptionHandler` 统一包装为 `BaseResponse`）。
+
 ## 快速开始
 
 ### 1. 环境要求
@@ -142,7 +161,7 @@
 mysql -u root -p < sql/create_table.sql
 ```
 
-脚本会创建库 `yu_picture`，并创建 `chat_memory`、`user`、`picture`、`space`、`space_user`、`love_knowledge` 等表及索引，插入恋爱知识库示例数据（其中用户/图片/空间相关表为图片项目遗留，当前 AI Agent 核心使用 `chat_memory` 与 `love_knowledge`）。
+脚本会创建库 `yu_picture`，并创建 `chat_memory`、`user`、`picture`、`space`、`space_user`、`love_knowledge`、`vip_code` 等表及索引，插入恋爱知识库示例数据，并写入初始管理员账号 **`admin` / `admin123456`**（BCrypt 加密，账号已存在时自动跳过）。其中 `user` 表需包含 `vipExpireTime`、`vipCode`、`vipNumber` 等列（脚本已通过 ALTER 补齐）；若你的库是旧版本，请重新执行脚本末尾追加的用户体系段落。
 
 ### 3. 配置本地密钥
 
@@ -205,7 +224,7 @@ npm install
 npm run dev
 ```
 
-前端默认运行在 `http://localhost:5173`，后端地址硬编码在 `src/services/http.js`（`http://localhost:8123/api`）。首页可在「AI 恋爱大师」与「AI 超级智能体」之间切换，支持 SSE 流式输出与智能体提问弹窗；生产构建执行 `npm run build`（产物已提交在 `dist/`）。
+前端默认运行在 `http://localhost:5173`，后端地址硬编码在 `src/services/http.js`（`http://localhost:8123/api`）。首页可在「AI 恋爱大师」与「AI 超级智能体」之间切换；游客可直接使用恋爱大师，使用超级智能体前需先登录/注册。生产构建执行 `npm run build`（产物已提交在 `dist/`）。
 
 ### 7. 访问地址汇总
 
@@ -224,6 +243,7 @@ npm run dev
 | `spring.profiles.active` | `application.yaml` | 默认 `local`，加载本地密钥文件（`application-local.yaml` 已 gitignore，需本地自行创建） |
 | `spring.datasource.*` | `application.yaml` | MySQL 连接（默认 `localhost:3306/yu_picture`，账号密码为开发值，已提交） |
 | `server.port` / `server.servlet.context-path` | `application.yaml` | `8123` / `/api` |
+| `spring.servlet.multipart.*` | `application.yaml` | 文件上传限制（单文件与总请求均 5MB），头像上传使用 |
 | `spring.ai.dashscope.api-key` | `application-local.yaml` | 通义千问 API Key |
 | `spring.ai.dashscope.chat.options.model` | `application-local.yaml` | 对话模型，默认 `qwen-max` |
 | `spring.mail.*` | `application-local.yaml` | SMTP 邮件（示例：163 邮箱，465 端口 SSL） |
@@ -231,28 +251,55 @@ npm run dev
 | `search-api.api-key` | `application-local.yaml` | SearchAPI（`WebSearchTool`，Baidu 引擎） |
 | `spring.ai.mcp.client.stdio.servers-configuration` | `application.yaml` | MCP stdio 服务配置，指向 `mcp-image-servers.json` |
 | `spring.ai.vectorstore.pgvector.*` | `application.yaml` | pgvector 参数（HNSW / 1536 维 / 余弦距离），当前实际未启用 |
+| `sa-token.token-name` / `sa-token.timeout` | `application.yaml` | 令牌名 `satoken`、有效期 30 天，前端通过请求头 `satoken` 携带 |
 | `Pexels.apiKey` | MCP 子服务 `application.yaml` | Pexels 图片搜索密钥 |
 | `IMAGE_SEARCH_LIMIT` | MCP 子服务环境变量 | 单次返回图片数（MCP 配置默认 5） |
 
 ## API 接口
 
-所有接口均在 `AiController` / `HelthController` 中定义，路径前缀为 `/api`。
+接口定义于 `AiController` / `UserController` / `FileController` / `HelthController`，路径前缀为 `/api`。
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/helth` | 健康检查，返回 `OK!` |
-| GET | `/ai/love_app/chat/sync?message=&chatId=` | 恋爱大师同步对话，返回纯文本 |
-| GET | `/ai/love_app/chat/sse?message=&chatId=` | 恋爱大师流式对话（`Flux<String>`，`text/event-stream`） |
-| GET | `/ai/love_app/chat/sent_event?message=&chatId=` | 恋爱大师 SSE 事件流（`Flux<ServerSentEvent<String>>`） |
-| GET | `/ai/love_app/chat/sse/emitter?message=&chatId=` | 恋爱大师 SSE 对话（`SseEmitter`，超时 180 秒，前端实际使用） |
-| GET | `/ai/manus/chat?message=` | 超级智能体流式对话（`SseEmitter`，超时 300 秒；每次请求创建新的 `CzManus` 实例） |
-| POST | `/ai/manus/human-answer` | 提交人类回答，请求体 `{"requestId":"...","answer":"..."}`；找到请求返回 200，未找到返回 404 |
+### AI 对话
+
+| 方法 | 路径 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/helth` | 公开 | 健康检查，返回 `OK!` |
+| GET | `/ai/love_app/chat/sync?message=&chatId=` | 公开 | 恋爱大师同步对话，返回纯文本 |
+| GET | `/ai/love_app/chat/sse?message=&chatId=` | 公开 | 恋爱大师流式对话（`Flux<String>`） |
+| GET | `/ai/love_app/chat/sent_event?message=&chatId=` | 公开 | 恋爱大师 SSE 事件流（`Flux<ServerSentEvent<String>>`） |
+| GET | `/ai/love_app/chat/sse/emitter?message=&chatId=` | 公开 | 恋爱大师 SSE 对话（`SseEmitter`，超时 180 秒，前端实际使用） |
+| GET | `/ai/manus/chat?message=` | 登录 | 超级智能体流式对话（`SseEmitter`，超时 300 秒；每次请求创建新的 `CzManus` 实例） |
+| POST | `/ai/manus/human-answer` | 登录 | 提交人类回答，请求体 `{"requestId":"...","answer":"..."}`；找到请求返回 200，未找到返回 404 |
+
+### 用户
+
+| 方法 | 路径 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
+| POST | `/user/register` | 公开 | 注册，请求体 `{userAccount, userPassword, checkPassword}`，返回新用户 id |
+| POST | `/user/login` | 公开 | 登录，请求体 `{userAccount, userPassword}`，返回 `{user, token}` |
+| POST | `/user/logout` | 登录 | 退出登录 |
+| GET | `/user/current` | 登录 | 获取当前登录用户（脱敏信息） |
+| POST | `/user/update` | 登录 | 更新资料（仅更新传入的非空字段：`userName` / `userAvatar` / `userProfile`） |
+| POST | `/user/update/password` | 登录 | 修改密码，请求体 `{oldPassword, newPassword, checkPassword}`，成功后强制重新登录 |
+| POST | `/user/vip/exchange` | 登录 | 兑换 VIP，请求体 `{vipCode}` |
+| POST | `/user/avatar/upload` | 登录 | 上传头像（`multipart/form-data`，字段名 `file`，支持 jpg/png/gif/webp ≤5MB），返回相对访问路径并自动更新头像 |
+| POST | `/user/add` | 管理员 | 新增用户，请求体 `{userAccount, userName, userAvatar, userProfile, userRole}`（初始密码 `12345678`） |
+| POST | `/user/delete` | 管理员 | 删除用户（软删除），请求体 `{id}` |
+| POST | `/user/update/role` | 管理员 | 修改角色，请求体 `{id, userRole}` |
+| GET | `/user/list` | 管理员 | 分页查询用户，参数 `current/pageSize/userAccount/userName/userRole` |
+| POST | `/user/vip/code/generate` | 管理员 | 生成 VIP 兑换码，请求体 `{count, durationDays}`，返回兑换码列表 |
+
+### 文件
+
+| 方法 | 路径 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/file/avatar/{filename}` | 公开 | 访问已上传的头像文件（带 7 天缓存） |
 
 说明：
 
 - 恋爱大师通过 `chatId` 维持独立会话（前端每次进入应用生成 UUID），`MessageChatMemoryAdvisor` 每轮注入最近 10 条记忆。
 - `LoveApp` 内部的 RAG / 组合检索 / 工具 / MCP 对话方法（`doChatWithRag`、`doChatWithFallbackSearch`、`doChatWithTools`、`doChatWithMcp`、`doChatWithReport`）目前**未暴露为 HTTP 接口**，仅供测试与内部调用。
-- 接口目前未做鉴权；统一异常处理（`GlobalExceptionHandler`）会将 Sa-Token 未登录/无权限、业务异常、运行时异常包装为 `BaseResponse` JSON。
+- 登录态通过请求头 `satoken: <token>` 传递；未登录返回 `40100`，无权限返回 `40101`，统一由 `GlobalExceptionHandler` 包装为 `BaseResponse` JSON。
 
 ## 工具清单
 
@@ -293,8 +340,17 @@ npm run dev
 | --- | --- | --- |
 | `chat_memory` | 会话消息持久化 | `conversation_id` + `message_type`（USER/ASSISTANT/SYSTEM）+ `content`，供 `MysqlChatMemory` 使用 |
 | `love_knowledge` | 恋爱知识库 | `content` + `status`（单身/恋爱/已婚）+ `tags`，RAG 降级检索与示例数据来源 |
-| `user` | 用户（图片项目遗留） | 含账号、密码、角色、VIP 扩展字段 |
+| `user` | 用户（核心） | 含账号、BCrypt 密码、昵称/头像/简介、角色（user/vip/admin）、VIP 扩展字段；`isDelete` 软删除 |
+| `vip_code` | VIP 兑换码 | `code` 唯一、`duration_days` 时长、`is_used` 使用状态、`used_by` 使用人、`created_by` 生成管理员 |
 | `picture` / `space` / `space_user` | 图片/空间（图片项目遗留） | 与当前 AI Agent 核心逻辑无直接关系 |
+
+## 前端说明
+
+- **页面结构**：单页应用通过视图状态切换（无 vue-router）：首页 → 登录 / 注册 → 聊天 → 个人中心。
+- **登录态**：token 存 `localStorage`（键 `cz_ai_token`）；`http.js` 请求拦截自动附加 `satoken` 头，响应拦截统一解包 `BaseResponse`，遇 `40100/40101` 或 HTTP 401/403 时清空登录态并回到登录页；SSE 请求（`chat.js`）同样携带令牌。
+- **游客与登录**：游客可进入「AI 恋爱大师」聊天；「AI 超级智能体」在未登录时点击会跳转登录页（卡片上显示"登录后可用"）。
+- **个人中心**：资料编辑（昵称/简介）、修改密码（改后需重新登录）、VIP 兑换、管理员面板（用户分页/搜索、改角色、删除、新建用户、批量生成兑换码）；头像通过 `+` 按钮选择本地图片上传，即时预览。
+- **视觉风格**：登录/注册/个人中心采用宇宙星空主题（星云渐变、星球光环、流星动画、发光卡片）；聊天页保留原有深空风格。
 
 ## 测试
 
@@ -321,14 +377,18 @@ npm run dev
   - `src/main/resources/mcp-servers.json`：高德地图 API Key；
   - `src/main/resources/application.yaml`：MySQL 默认账号密码（及被注释的 PostgreSQL 连接串）。
   请立即**撤销/轮换**这些密钥，并迁移到环境变量、密钥管理服务或未提交的本地配置。
-- AI 接口目前**无鉴权、无限流**；`AuthAdvisor`、`AuthInterceptor`、Sa-Token 相关代码均处于注释状态。
+- AI 接口与用户接口**已启用登录鉴权**，但**未做限流与审计**；初始管理员账号 `admin / admin123456` 已写入数据库脚本，上线前必须修改密码。
 - `TerminalOperationTool` 可执行任意终端命令、`FileOperationTool` 可读写文件；对外提供 Agent 能力前应增加命令白名单、路径约束、权限隔离与审计。
+- 头像上传已限制类型与大小（jpg/png/gif/webp，≤5MB），文件名为 UUID 且访问路径经过白名单校验，防止路径穿越。
 - `mcp-image-servers.json` 的 stdio 配置由主服务直接执行 JAR，部署时需确认 JAR 来源可信、路径可控。
 
 ## 已知问题与注意事项
 
 - 健康检查路径拼写为 `/helth`（非 `health`），属于源码现状，README 按实际路径记录。
+- **访问控制**：`/user/**` 与 `/ai/manus/**` 需要登录（携带 `satoken` 请求头），`/ai/love_app/**` 游客可访问；直接调用超级智能体接口的旧脚本需先登录获取令牌。
+- 管理员通过 `/user/add` 创建的用户初始密码固定为 `12345678`，用户登录后应在个人中心修改。
 - LoveApp 当前使用 `InMemoryChatMemory`，重启后对话记忆丢失；`MysqlChatMemory` / `FileBaseChatMemory` 已实现但需手动切换。
+- 上传的头像保存在 `tmp/avatar/`（gitignore），清理 `tmp` 目录会导致头像文件丢失（数据库中的相对路径仍会保留）。
 - pgvector 相关配置（`application.yaml` 参数、`PgVectorVectorStoreConfig`、`PgVectorStoreAutoConfiguration` 排除项）尚未打通，启用需同步调整数据源与依赖。
 - 前端依赖使用 `latest`，未锁定版本，构建结果可能随依赖升级变化；`dist/` 构建产物已提交。
 - 根目录存在一个空的 `package-lock.json`（`packages: {}`），疑似残留，无实际用途。
@@ -337,10 +397,10 @@ npm run dev
 
 ## 后续规划
 
-- 为恋爱咨询与智能体接口补充鉴权（启用 Sa-Token / `AuthCheck`）、限流与审计日志。
+- 为 AI 接口与用户接口补充限流、登录失败次数限制与操作审计日志；`@AuthCheck` 注解与 `AuthInterceptor` 切面可作为替代方案启用。
 - `application-local.yaml` 已移出版本控制；继续清理其余已提交的凭据（`TestApiKey.java`、`mcp-servers.json`、MCP 子服务 `application.yaml`、主 `application.yaml` 数据源），必要时重写 git 历史清除旧密钥，并全面切换环境变量/密钥服务。
 - 将对话记忆切换为 MySQL 持久化，并设计会话清理策略。
 - 打通 PostgreSQL + pgvector 持久化向量库，替代启动时内存建库的方案。
-- 完善用户体系（注册/登录/VIP 兑换接口已建模但未暴露）。
+- 用户体系可补充邮箱验证、找回密码、第三方登录与更细粒度权限；头像可增加裁剪/压缩与对象存储（OSS/MinIO）上传。
 - 为 MCP 子服务增加独立部署、健康检查与主服务启动前置校验。
-- 将 LoveApp 的 RAG / 工具 / MCP / 报告等内部能力暴露为受控 HTTP 接口，并补充单元测试。
+- 将 LoveApp 的 RAG / 工具 / MCP / 报告等内部能力暴露为受控 HTTP 接口，并补充用户模块的单元测试。

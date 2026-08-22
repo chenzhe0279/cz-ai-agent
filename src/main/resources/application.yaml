@@ -1,6 +1,10 @@
 spring:
   application:
     name: cz-ai-agent
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
     # 数据库配置
 #  datasource:
 #    url: jdbc:postgresql://pgm-bp1wke216ju0z6v0fo.rwlb.rds.aliyuncs.com:5432/cz_ai_agent
@@ -60,7 +64,15 @@ knife4j:
   setting:
     language: zh_cn
 
-
+# Sa-Token 用户鉴权配置
+sa-token:
+  token-name: satoken
+  timeout: 2592000
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: uuid
+  is-log: false
 
 
 

@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * 配置类，用于初始化基于云知识库的检索增强顾问Bean
  */
-@Configuration
+//@Configuration
 @Slf4j
 public class LoveAppRagCloudAdvisorConfig {
 
@@ -40,7 +40,7 @@ public class LoveAppRagCloudAdvisorConfig {
      *         内部集成了指向"恋爱大师"知识库的文档检索器，
      *         可直接被Spring AI的ChatClient使用
      */
-    @Bean
+    //@Bean
     public Advisor loveAppRagCloudAdvisor(){
         // 第一步：创建DashScope云端API客户端，使用配置文件中注入的API密钥进行身份认证
         DashScopeApi dashScopeApi = new DashScopeApi(dashScopeApiKey);

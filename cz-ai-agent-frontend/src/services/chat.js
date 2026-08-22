@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './http'
+import { API_BASE_URL, getToken } from './http'
 
 const endpoints = {
   // Spring SseEmitter 接口，恋爱大师通过 chatId 维持独立会话。
@@ -11,10 +11,18 @@ export async function streamChat(type, message, chatId, onEvent) {
   const params = new URLSearchParams({ message })
   if (type === 'love') params.set('chatId', chatId)
 
+  const headers = { Accept: 'text/event-stream' }
+  const token = getToken()
+  if (token) {
+    headers.satoken = token
+  }
   const response = await fetch(`${API_BASE_URL}${endpoints[type]}?${params}`, {
     method: 'GET',
-    headers: { Accept: 'text/event-stream' },
+    headers,
   })
+  if (response.status === 401) {
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+  }
   if (!response.ok) throw new Error(`请求失败（${response.status}）`)
   if (!response.body) throw new Error('浏览器不支持流式响应')
 
