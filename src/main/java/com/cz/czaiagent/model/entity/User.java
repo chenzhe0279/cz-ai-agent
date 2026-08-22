@@ -39,6 +39,11 @@ public class User implements Serializable {
     private String userProfile;
 
     /**
+     * 邮箱（绑定后可用于找回密码）
+     */
+    private String email;
+
+    /**
      * 用户角色：user / vip / admin
      */
     private String userRole;

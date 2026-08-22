@@ -20,7 +20,11 @@ import com.cz.czaiagent.model.vo.LoginResponse;
 import com.cz.czaiagent.model.vo.UserVO;
 import com.cz.czaiagent.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -53,7 +57,27 @@ public class UserServiceImpl implements UserService {
 
     private static final long MAX_AVATAR_SIZE = 5 * 1024 * 1024L;
 
+    private static final int EMAIL_CODE_TTL_MINUTES = 10;
+
+    private static final long EMAIL_CODE_COOLDOWN_SECONDS = 60;
+
+    private static final String EMAIL_PURPOSE_BIND = "bind";
+
+    private static final String EMAIL_PURPOSE_REGISTER = "register";
+
+    private static final String EMAIL_PURPOSE_LOGIN = "login";
+
+    private static final String EMAIL_PURPOSE_RESET = "reset";
+
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[\\w.+-]+@[\\w-]+(\\.[\\w-]+)+$");
+
     private final JdbcTemplate jdbcTemplate;
+
+    @Autowired(required = false)
+    private JavaMailSender mailSender;
+
+    @Value("${spring.mail.username:}")
+    private String mailUsername;
 
     public UserServiceImpl(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -73,12 +97,24 @@ public class UserServiceImpl implements UserService {
                 ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
         ThrowUtils.throwIf(selectUserByAccount(account) != null,
                 ErrorCode.OPERATION_ERROR, "账号已存在");
+        String email = validateEmail(request.getEmail());
+        verifyCode(email, EMAIL_PURPOSE_REGISTER, request.getVerifyCode());
+        ThrowUtils.throwIf(selectUserByEmail(email) != null,
+                ErrorCode.OPERATION_ERROR, "该邮箱已被其他账号绑定");
 
         String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
         jdbcTemplate.update(
-                "INSERT INTO user (userAccount, userPassword, userName, userRole, isDelete) VALUES (?, ?, ?, ?, 0)",
-                account, hashedPassword, account, UserConstant.DEFAULT_ROLE);
+                "INSERT INTO user (userAccount, userPassword, userName, userRole, email, isDelete) VALUES (?, ?, ?, ?, ?, 0)",
+                account, hashedPassword, account, UserConstant.DEFAULT_ROLE, email);
         return jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+    }
+
+    @Override
+    public void sendRegisterCode(EmailSendCodeRequest request) {
+        String email = validateEmail(request.getEmail());
+        ThrowUtils.throwIf(selectUserByEmail(email) != null,
+                ErrorCode.OPERATION_ERROR, "该邮箱已被绑定，请直接登录或使用找回密码");
+        sendCode(email, EMAIL_PURPOSE_REGISTER);
     }
 
     @Override
@@ -94,6 +130,26 @@ public class UserServiceImpl implements UserService {
 
         StpUtil.login(user.getId());
         log.info("用户登录成功：id={}, account={}", user.getId(), user.getUserAccount());
+        return new LoginResponse(getUserVO(user), StpUtil.getTokenValue());
+    }
+
+    @Override
+    public void sendLoginCode(EmailSendCodeRequest request) {
+        String email = validateEmail(request.getEmail());
+        ThrowUtils.throwIf(selectUserByEmail(email) == null,
+                ErrorCode.NOT_FOUND_ERROR, "该邮箱未绑定任何账号，请先注册");
+        sendCode(email, EMAIL_PURPOSE_LOGIN);
+    }
+
+    @Override
+    public LoginResponse loginByEmailCode(EmailLoginRequest request) {
+        String email = validateEmail(request.getEmail());
+        verifyCode(email, EMAIL_PURPOSE_LOGIN, request.getVerifyCode());
+        User user = selectUserByEmail(email);
+        ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR, "该邮箱未绑定任何账号，请先注册");
+
+        StpUtil.login(user.getId());
+        log.info("用户通过邮箱验证码登录成功：id={}, account={}", user.getId(), user.getUserAccount());
         return new LoginResponse(getUserVO(user), StpUtil.getTokenValue());
     }
 
@@ -343,6 +399,135 @@ public class UserServiceImpl implements UserService {
         return avatarUrl;
     }
 
+    @Override
+    public void sendEmailCode(EmailSendCodeRequest request) {
+        String email = validateEmail(request.getEmail());
+        getLoginUser(); // 绑定邮箱场景要求登录
+        sendCode(email, EMAIL_PURPOSE_BIND);
+    }
+
+    @Override
+    public void bindEmail(EmailBindRequest request) {
+        User user = getLoginUser();
+        String email = validateEmail(request.getEmail());
+        verifyCode(email, EMAIL_PURPOSE_BIND, request.getVerifyCode());
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user WHERE email = ? AND id <> ? AND isDelete = 0",
+                Integer.class, email, user.getId());
+        ThrowUtils.throwIf(count != null && count > 0,
+                ErrorCode.OPERATION_ERROR, "该邮箱已被其他账号绑定");
+        jdbcTemplate.update("UPDATE user SET email = ? WHERE id = ?", email, user.getId());
+        log.info("用户 {} 绑定邮箱 {}", user.getId(), email);
+    }
+
+    @Override
+    public void sendPasswordResetCode(EmailSendCodeRequest request) {
+        String email = validateEmail(request.getEmail());
+        ThrowUtils.throwIf(selectUserByEmail(email) == null,
+                ErrorCode.NOT_FOUND_ERROR, "该邮箱未绑定任何账号");
+        sendCode(email, EMAIL_PURPOSE_RESET);
+    }
+
+    @Override
+    public void resetPassword(PasswordResetRequest request) {
+        String email = validateEmail(request.getEmail());
+        verifyCode(email, EMAIL_PURPOSE_RESET, request.getVerifyCode());
+        ThrowUtils.throwIf(StrUtil.isBlank(request.getNewPassword())
+                        || request.getNewPassword().length() < 8 || request.getNewPassword().length() > 32,
+                ErrorCode.PARAMS_ERROR, "新密码长度应为 8-32 位");
+        ThrowUtils.throwIf(!request.getNewPassword().equals(request.getCheckPassword()),
+                ErrorCode.PARAMS_ERROR, "两次输入的新密码不一致");
+
+        User user = selectUserByEmail(email);
+        ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR, "该邮箱未绑定任何账号");
+        String hashed = BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt());
+        jdbcTemplate.update("UPDATE user SET userPassword = ? WHERE id = ?", hashed, user.getId());
+        try {
+            StpUtil.kickout(user.getId());
+        } catch (Exception ignored) {
+        }
+        log.info("用户 {} 通过邮箱验证码重置密码", user.getId());
+    }
+
+    // ==================== 邮箱验证码内部方法 ====================
+
+    private String validateEmail(String email) {
+        ThrowUtils.throwIf(StrUtil.isBlank(email) || !EMAIL_PATTERN.matcher(email.trim()).matches(),
+                ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+        return email.trim();
+    }
+
+    private void sendCode(String email, String purpose) {
+        // 冷却：同一邮箱同一用途 60 秒内只能发送一次
+        Date earliest = new Date(System.currentTimeMillis() - EMAIL_CODE_COOLDOWN_SECONDS * 1000L);
+        Integer recent = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM email_verify_code WHERE email = ? AND purpose = ? AND create_time > ?",
+                Integer.class, email, purpose, earliest);
+        ThrowUtils.throwIf(recent != null && recent > 0,
+                ErrorCode.OPERATION_ERROR, "发送过于频繁，请稍后再试");
+        ThrowUtils.throwIf(mailSender == null,
+                ErrorCode.OPERATION_ERROR, "邮件服务未配置，请先配置 spring.mail");
+
+        String code = RandomUtil.randomNumbers(6);
+        Date expireTime = new Date(System.currentTimeMillis() + EMAIL_CODE_TTL_MINUTES * 60L * 1000L);
+        jdbcTemplate.update(
+                "INSERT INTO email_verify_code (email, code, purpose, expire_time) VALUES (?, ?, ?, ?)",
+                email, code, purpose, expireTime);
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            if (StrUtil.isNotBlank(mailUsername)) {
+                message.setFrom(mailUsername);
+            }
+            message.setTo(email);
+            message.setSubject(EMAIL_PURPOSE_BIND.equals(purpose)
+                    ? "【CZ AI】邮箱绑定验证码"
+                    : EMAIL_PURPOSE_REGISTER.equals(purpose)
+                            ? "【CZ AI】注册验证码"
+                            : EMAIL_PURPOSE_LOGIN.equals(purpose)
+                                    ? "【CZ AI】登录验证码"
+                                    : "【CZ AI】找回密码验证码");
+            message.setText("您的验证码是：" + code + "，" + EMAIL_CODE_TTL_MINUTES
+                    + " 分钟内有效。若非本人操作，请忽略本邮件。");
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.error("发送验证码邮件失败", e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "验证码邮件发送失败，请检查邮箱配置");
+        }
+    }
+
+    private void verifyCode(String email, String purpose, String code) {
+        ThrowUtils.throwIf(StrUtil.isBlank(code), ErrorCode.PARAMS_ERROR, "验证码不能为空");
+        EmailCodeRow row = jdbcTemplate.query(
+                        "SELECT id, code, expire_time, is_used FROM email_verify_code " +
+                                "WHERE email = ? AND purpose = ? AND is_used = 0 ORDER BY id DESC LIMIT 1",
+                        (rs, rowNum) -> new EmailCodeRow(
+                                rs.getLong("id"),
+                                rs.getString("code"),
+                                rs.getTimestamp("expire_time"),
+                                rs.getInt("is_used")),
+                        email, purpose)
+                .stream().findFirst().orElse(null);
+        ThrowUtils.throwIf(row == null || !row.code().equals(code.trim()),
+                ErrorCode.PARAMS_ERROR, "验证码错误");
+        ThrowUtils.throwIf(row.expireTime() == null || row.expireTime().before(new Date()),
+                ErrorCode.PARAMS_ERROR, "验证码已过期");
+        // 一次性使用：作废该邮箱 + 用途下的所有未使用验证码
+        jdbcTemplate.update(
+                "UPDATE email_verify_code SET is_used = 1 WHERE email = ? AND purpose = ?",
+                email, purpose);
+    }
+
+    private User selectUserByEmail(String email) {
+        if (StrUtil.isBlank(email)) {
+            return null;
+        }
+        List<User> users = jdbcTemplate.query(
+                "SELECT * FROM user WHERE email = ? AND isDelete = 0",
+                (rs, rowNum) -> mapRow(rs), email);
+        return users.isEmpty() ? null : users.get(0);
+    }
+
     // ==================== 内部方法 ====================
 
     private User getLoginUser() {
@@ -397,6 +582,7 @@ public class UserServiceImpl implements UserService {
         vo.setUserName(user.getUserName());
         vo.setUserAvatar(user.getUserAvatar());
         vo.setUserProfile(user.getUserProfile());
+        vo.setEmail(user.getEmail());
         vo.setUserRole(user.getUserRole());
         vo.setVipExpireTime(user.getVipExpireTime());
         vo.setVipCode(user.getVipCode());
@@ -413,6 +599,7 @@ public class UserServiceImpl implements UserService {
         user.setUserName(rs.getString("userName"));
         user.setUserAvatar(rs.getString("userAvatar"));
         user.setUserProfile(rs.getString("userProfile"));
+        user.setEmail(rs.getString("email"));
         user.setUserRole(rs.getString("userRole"));
         user.setVipExpireTime(rs.getTimestamp("vipExpireTime"));
         user.setVipCode(rs.getString("vipCode"));
@@ -427,5 +614,11 @@ public class UserServiceImpl implements UserService {
      * vip_code 表行记录（内部载体）
      */
     private record VipCodeRow(Long id, String code, int durationDays, int isUsed) {
+    }
+
+    /**
+     * email_verify_code 表行记录（内部载体）
+     */
+    private record EmailCodeRow(Long id, String code, Date expireTime, int isUsed) {
     }
 }

@@ -30,6 +30,13 @@ export async function login(payload) {
   return data
 }
 
+export async function loginByEmailCode(payload) {
+  const data = await userApi.loginByEmailCode(payload)
+  setToken(data.token)
+  auth.user = data.user
+  return data
+}
+
 export async function logout() {
   try {
     await userApi.logout()

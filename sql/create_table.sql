@@ -199,3 +199,38 @@ create table if not exists vip_code
 -- 账号已存在时自动跳过，不会覆盖已有账号
 insert ignore into user (userAccount, userPassword, userName, userRole)
 values ('admin', '$2a$10$BUSJLRttY7xbW4Z4JRabPOYSXucGGTVwamIiEMIXWDy69GvAS6GpW', '管理员', 'admin');
+
+-- ============================================================================
+-- 用户体系扩展：邮箱验证 + 找回密码
+-- （如需单独执行，可直接复制本段）
+-- ============================================================================
+
+-- user 表补充 email 列与唯一索引（幂等：列已存在则跳过）
+drop procedure if exists add_user_email_column;
+delimiter //
+create procedure add_user_email_column()
+begin
+    if not exists (
+        select 1 from information_schema.columns
+        where table_schema = database() and table_name = 'user' and column_name = 'email'
+    ) then
+        alter table user add column email varchar(128) null comment '邮箱' after userProfile;
+        alter table user add unique key uk_email (email);
+    end if;
+end //
+delimiter ;
+call add_user_email_column();
+drop procedure if exists add_user_email_column;
+
+-- 邮箱验证码表
+create table if not exists email_verify_code
+(
+    id          bigint auto_increment comment 'id' primary key,
+    email       varchar(128) not null comment '邮箱',
+    code        varchar(8)   not null comment '6 位验证码',
+    purpose     varchar(16)  not null comment '用途：bind-绑定邮箱 reset-找回密码',
+    expire_time datetime     not null comment '过期时间',
+    is_used     tinyint      default 0 not null comment '是否已使用：0-未使用 1-已使用',
+    create_time datetime     default CURRENT_TIMESTAMP comment '创建时间',
+    index idx_email_purpose (email, purpose)
+) comment '邮箱验证码' collate = utf8mb4_unicode_ci;

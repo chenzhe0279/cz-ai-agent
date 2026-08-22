@@ -4,8 +4,20 @@ export function register(data) {
   return http.post('/user/register', data)
 }
 
+export function sendRegisterCode(data) {
+  return http.post('/user/register/code', data)
+}
+
 export function login(data) {
   return http.post('/user/login', data)
+}
+
+export function sendLoginCode(data) {
+  return http.post('/user/login/code/send', data)
+}
+
+export function loginByEmailCode(data) {
+  return http.post('/user/login/code', data)
 }
 
 export function logout() {
@@ -50,4 +62,20 @@ export function generateVipCodes(data) {
 
 export function uploadAvatar(formData) {
   return http.post('/user/avatar/upload', formData)
+}
+
+export function sendEmailCode(data) {
+  return http.post('/user/email/send-code', data)
+}
+
+export function bindEmail(data) {
+  return http.post('/user/email/bind', data)
+}
+
+export function sendPasswordResetCode(data) {
+  return http.post('/user/password/reset/code', data)
+}
+
+export function resetPassword(data) {
+  return http.post('/user/password/reset', data)
 }

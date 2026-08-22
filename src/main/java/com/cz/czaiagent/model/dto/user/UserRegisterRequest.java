@@ -27,4 +27,14 @@ public class UserRegisterRequest implements Serializable {
      */
     private String checkPassword;
 
+    /**
+     * 邮箱（注册时绑定）
+     */
+    private String email;
+
+    /**
+     * 邮箱验证码
+     */
+    private String verifyCode;
+
 }

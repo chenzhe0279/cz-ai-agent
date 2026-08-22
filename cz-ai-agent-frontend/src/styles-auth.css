@@ -36,6 +36,29 @@
   font: 600 24px/1.3 'Playfair Display', 'Noto Sans SC', serif;
   color: #f2f5ff;
 }
+.login-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid #a7b8e42e;
+  border-radius: 12px;
+  background: #09112766;
+}
+.login-tabs button {
+  padding: 9px 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #8c9abc;
+  font-size: 13px;
+  transition: 0.2s;
+}
+.login-tabs button.active {
+  background: linear-gradient(135deg, #9d8bff33, #6d7cff26);
+  color: #e4eaff;
+  box-shadow: inset 0 0 0 1px #a98bff55, 0 4px 14px #0005;
+}
 .auth-card label {
   display: grid;
   gap: 7px;
@@ -55,6 +78,32 @@
   color: #ecf1ff;
   font-size: 14px;
   line-height: 1.5;
+}
+.code-row {
+  display: flex;
+  gap: 9px;
+}
+.code-row input {
+  flex: 1;
+  min-width: 0;
+}
+.code-btn {
+  flex: 0 0 auto;
+  padding: 0 13px;
+  border: 1px solid #a98bff66;
+  border-radius: 10px;
+  background: #2a2350;
+  color: #e4d9ff;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.code-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.code-btn:not(:disabled):hover {
+  background: #3a3170;
+  border-color: #c3adff;
 }
 .auth-card input:focus,
 .panel input:focus,
@@ -84,6 +133,11 @@
   color: #ff9fae;
   font-size: 13px;
 }
+.auth-notice {
+  margin: 0;
+  color: #8ff0be;
+  font-size: 13px;
+}
 .auth-switch {
   margin: 4px 0 0;
   text-align: center;
@@ -97,6 +151,10 @@
 .auth-switch a:hover {
   color: #e4eaff;
   text-decoration: underline;
+}
+.auth-sep {
+  margin: 0 6px;
+  color: #56648c;
 }
 .nav-user,
 .chat-user {

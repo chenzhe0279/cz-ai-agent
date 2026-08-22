@@ -34,11 +34,37 @@ public class UserController {
     }
 
     /**
+     * 发送注册邮箱验证码（公开）
+     */
+    @PostMapping("/register/code")
+    public BaseResponse<Boolean> sendRegisterCode(@RequestBody EmailSendCodeRequest request) {
+        userService.sendRegisterCode(request);
+        return ResultUtils.success(true);
+    }
+
+    /**
      * 登录
      */
     @PostMapping("/login")
     public BaseResponse<LoginResponse> login(@RequestBody UserLoginRequest request) {
         return ResultUtils.success(userService.login(request));
+    }
+
+    /**
+     * 发送登录邮箱验证码（公开）
+     */
+    @PostMapping("/login/code/send")
+    public BaseResponse<Boolean> sendLoginCode(@RequestBody EmailSendCodeRequest request) {
+        userService.sendLoginCode(request);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 邮箱验证码登录（公开）
+     */
+    @PostMapping("/login/code")
+    public BaseResponse<LoginResponse> loginByEmailCode(@RequestBody EmailLoginRequest request) {
+        return ResultUtils.success(userService.loginByEmailCode(request));
     }
 
     /**
@@ -91,6 +117,42 @@ public class UserController {
     @PostMapping("/avatar/upload")
     public BaseResponse<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
         return ResultUtils.success(userService.uploadAvatar(file));
+    }
+
+    /**
+     * 发送邮箱绑定验证码（需登录）
+     */
+    @PostMapping("/email/send-code")
+    public BaseResponse<Boolean> sendEmailCode(@RequestBody EmailSendCodeRequest request) {
+        userService.sendEmailCode(request);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 绑定邮箱（需登录，校验验证码）
+     */
+    @PostMapping("/email/bind")
+    public BaseResponse<Boolean> bindEmail(@RequestBody EmailBindRequest request) {
+        userService.bindEmail(request);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 发送找回密码验证码（公开）
+     */
+    @PostMapping("/password/reset/code")
+    public BaseResponse<Boolean> sendPasswordResetCode(@RequestBody EmailSendCodeRequest request) {
+        userService.sendPasswordResetCode(request);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 通过邮箱验证码重置密码（公开）
+     */
+    @PostMapping("/password/reset")
+    public BaseResponse<Boolean> resetPassword(@RequestBody PasswordResetRequest request) {
+        userService.resetPassword(request);
+        return ResultUtils.success(true);
     }
 
     /**

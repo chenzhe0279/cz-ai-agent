@@ -6,9 +6,10 @@ import { API_BASE_URL } from './services/http'
 import { auth, initAuth, logout as authLogout } from './store/auth'
 import LoginView from './components/LoginView.vue'
 import RegisterView from './components/RegisterView.vue'
+import ForgotPasswordView from './components/ForgotPasswordView.vue'
 import ProfileView from './components/ProfileView.vue'
 
-const view = ref('home') // home | login | register | profile | chat
+const view = ref('home') // home | login | register | forgot | profile | chat
 const currentApp = ref(null)
 const draft = ref('')
 const isStreaming = ref(false)
@@ -234,8 +235,9 @@ async function scrollToBottom() {
   </main>
 
   <!-- 登录 / 注册 -->
-  <LoginView v-else-if="view === 'login'" @success="view = 'home'" @switch-register="view = 'register'" @back="view = 'home'" />
+  <LoginView v-else-if="view === 'login'" @success="view = 'home'" @switch-register="view = 'register'" @switch-forgot="view = 'forgot'" @back="view = 'home'" />
   <RegisterView v-else-if="view === 'register'" @success="view = 'home'" @switch-login="view = 'login'" @back="view = 'home'" />
+  <ForgotPasswordView v-else-if="view === 'forgot'" @switch-login="view = 'login'" @back="view = 'login'" />
 
   <!-- 个人中心 -->
   <ProfileView v-else-if="view === 'profile'" @back="view = 'home'" @logout="view = 'home'" />

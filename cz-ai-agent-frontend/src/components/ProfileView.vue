@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { auth, logout as storeLogout } from '../store/auth'
 import * as userApi from '../services/user'
 import { API_BASE_URL } from '../services/http'
@@ -13,9 +13,13 @@ const notice = ref('')
 const noticeType = ref('ok')
 const busy = ref(false)
 const avatarInput = ref(null)
+const emailForm = ref({ email: '', verifyCode: '' })
+const emailCountdown = ref(0)
+let emailTimer = null
 
 const isAdmin = computed(() => auth.user?.userRole === 'admin')
 const isVip = computed(() => auth.user?.userRole === 'vip')
+const emailBoundText = computed(() => auth.user?.email || '未绑定')
 const vipExpireText = computed(() => {
   const t = auth.user?.vipExpireTime
   return t ? new Date(t).toLocaleString() : '未开通'
@@ -39,6 +43,8 @@ onMounted(() => {
   syncProfileForm()
   if (isAdmin.value) loadUsers()
 })
+
+onUnmounted(() => clearInterval(emailTimer))
 
 function syncProfileForm() {
   profileForm.value = {
@@ -67,6 +73,57 @@ async function saveProfile() {
 
 function triggerAvatarPick() {
   avatarInput.value?.click()
+}
+
+function validateEmail(value) {
+  return /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(value.trim())
+}
+
+function startEmailCountdown() {
+  emailCountdown.value = 60
+  clearInterval(emailTimer)
+  emailTimer = setInterval(() => {
+    emailCountdown.value--
+    if (emailCountdown.value <= 0) clearInterval(emailTimer)
+  }, 1000)
+}
+
+async function sendBindCode() {
+  if (!validateEmail(emailForm.value.email)) {
+    showNotice('邮箱格式不正确', 'error')
+    return
+  }
+  busy.value = true
+  try {
+    await userApi.sendEmailCode({ email: emailForm.value.email.trim() })
+    showNotice('验证码已发送，请查收邮箱')
+    startEmailCountdown()
+  } catch (e) {
+    showNotice(e.message || '发送失败', 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function bindEmail() {
+  if (!emailForm.value.verifyCode.trim()) {
+    showNotice('请输入验证码', 'error')
+    return
+  }
+  busy.value = true
+  try {
+    await userApi.bindEmail({
+      email: emailForm.value.email.trim(),
+      verifyCode: emailForm.value.verifyCode.trim(),
+    })
+    auth.user = await userApi.getCurrentUser()
+    emailForm.value = { email: '', verifyCode: '' }
+    showNotice('邮箱绑定成功')
+  } catch (e) {
+    showNotice(e.message || '绑定失败', 'error')
+  } finally {
+    busy.value = false
+  }
 }
 
 async function onAvatarChange(event) {
@@ -234,6 +291,8 @@ async function generateCodes() {
             <span v-if="isVip" class="tag vip">VIP</span>
           </div>
           <dl class="profile-meta">
+            <dt>邮箱</dt>
+            <dd>{{ emailBoundText }}</dd>
             <dt>会员过期</dt>
             <dd>{{ vipExpireText }}</dd>
             <dt>会员编号</dt>
@@ -257,6 +316,21 @@ async function generateCodes() {
             <label><span>新密码</span><input v-model="pwdForm.newPassword" type="password" autocomplete="new-password" /></label>
             <label><span>确认新密码</span><input v-model="pwdForm.checkPassword" type="password" autocomplete="new-password" /></label>
             <button class="profile-btn" :disabled="busy" @click="savePassword">修改密码</button>
+          </section>
+
+          <section class="panel">
+            <h4>邮箱绑定</h4>
+            <p class="panel-tip">当前邮箱：{{ emailBoundText }}。绑定后可用于找回密码。</p>
+            <div class="vip-row">
+              <input v-model="emailForm.email" type="email" placeholder="请输入邮箱" />
+              <button class="profile-btn slim" :disabled="busy || emailCountdown > 0" @click="sendBindCode">
+                {{ emailCountdown > 0 ? `${emailCountdown}s 后重发` : '发送验证码' }}
+              </button>
+            </div>
+            <div class="vip-row">
+              <input v-model="emailForm.verifyCode" placeholder="请输入 6 位验证码" />
+              <button class="profile-btn slim" :disabled="busy" @click="bindEmail">绑定邮箱</button>
+            </div>
           </section>
 
           <section class="panel">

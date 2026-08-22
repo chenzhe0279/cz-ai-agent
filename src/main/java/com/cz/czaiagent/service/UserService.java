@@ -21,9 +21,24 @@ public interface UserService {
     Long register(UserRegisterRequest request);
 
     /**
+     * 发送注册邮箱验证码（公开）
+     */
+    void sendRegisterCode(EmailSendCodeRequest request);
+
+    /**
      * 登录，返回用户信息与令牌
      */
     LoginResponse login(UserLoginRequest request);
+
+    /**
+     * 发送登录邮箱验证码（公开，需邮箱已绑定账号）
+     */
+    void sendLoginCode(EmailSendCodeRequest request);
+
+    /**
+     * 通过邮箱验证码登录
+     */
+    LoginResponse loginByEmailCode(EmailLoginRequest request);
 
     /**
      * 退出登录
@@ -84,4 +99,24 @@ public interface UserService {
      * 上传头像（保存到本地 tmp/avatar，返回相对访问路径并更新当前用户）
      */
     String uploadAvatar(MultipartFile file);
+
+    /**
+     * 发送邮箱验证码（绑定邮箱场景，需登录）
+     */
+    void sendEmailCode(EmailSendCodeRequest request);
+
+    /**
+     * 绑定邮箱（校验验证码）
+     */
+    void bindEmail(EmailBindRequest request);
+
+    /**
+     * 发送找回密码验证码（公开，按邮箱查找账号）
+     */
+    void sendPasswordResetCode(EmailSendCodeRequest request);
+
+    /**
+     * 通过邮箱验证码重置密码
+     */
+    void resetPassword(PasswordResetRequest request);
 }
