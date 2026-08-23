@@ -79,7 +79,7 @@ public class ToolRegistration {
         WebSearchTool webSearchTool = new WebSearchTool(searchApiKey);
         WebScrapingTool webScrapingTool = new WebScrapingTool();
         ResourceDownloadTool resourceDownloadTool = new ResourceDownloadTool();
-        TerminalOperationTool terminalOperationTool = new TerminalOperationTool();
+        //TerminalOperationTool terminalOperationTool = new TerminalOperationTool();
         PDFGenerationTool pdfGenerationTool = new PDFGenerationTool();
         // 创建人类交互工具实例：无外部依赖（内部直接使用 System.in），直接 new 即可
         AskHumanTool askHumanTool = new AskHumanTool(humanInteractionService);
@@ -94,7 +94,7 @@ public class ToolRegistration {
             webSearchTool,
             webScrapingTool,
             resourceDownloadTool,
-            terminalOperationTool,
+            //terminalOperationTool,
             pdfGenerationTool,
             emailTool,
             terminateTool,

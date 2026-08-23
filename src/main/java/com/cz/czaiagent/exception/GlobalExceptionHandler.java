@@ -2,6 +2,7 @@ package com.cz.czaiagent.exception;
 
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
+import cn.dev33.satoken.exception.NotRoleException;
 import com.cz.czaiagent.common.BaseResponse;
 import com.cz.czaiagent.common.ResultUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotPermissionException.class)
     public BaseResponse<?> notPermissionExceptionHandler(NotPermissionException e) {
         log.error("NotPermissionException", e);
+        return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, e.getMessage());
+    }
+
+    @ExceptionHandler(NotRoleException.class)
+    public BaseResponse<?> notRoleExceptionHandler(NotRoleException e) {
+        log.error("NotRoleException", e);
         return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, e.getMessage());
     }
 

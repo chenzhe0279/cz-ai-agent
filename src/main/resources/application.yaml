@@ -10,13 +10,13 @@ spring:
 #    url: jdbc:postgresql://pgm-bp1wke216ju0z6v0fo.rwlb.rds.aliyuncs.com:5432/cz_ai_agent
 #    username: czAgent
 #    password: Qnmd985211
-  ai:
-    vectorstore:
-      pgvector:
-        index-type: HNSW
-        dimensions: 1536
-        distance-type: COSINE_DISTANCE
-        max-document-batch-size: 10000 # Optional: Maximum number of documents per batch
+#  ai:
+#    vectorstore:
+#      pgvector:
+#        index-type: HNSW
+#        dimensions: 1536
+#        distance-type: COSINE_DISTANCE
+#        max-document-batch-size: 10000 # Optional: Maximum number of documents per batch
     mcp:
       client:
         sse:
@@ -34,6 +34,10 @@ spring:
   # 默认加载的配置文件是application-local.yml
   profiles:
     active: local
+  # 异步请求（SSE 流式）超时时间：10 分钟，配合 SseEmitter 避免长任务连接被断开
+  mvc:
+    async:
+      request-timeout: 600000
 
 
         #ai:
@@ -71,8 +75,12 @@ sa-token:
   active-timeout: -1
   is-concurrent: true
   is-share: false
-  token-style: uuid
+  # JWT 无状态令牌：登录态由令牌本身携带，不依赖后端内存会话，
+  # 页面刷新、后端重启后旧令牌依然有效（生产环境请通过环境变量覆盖 jwt-secret-key）
+  token-style: jwt
   is-log: false
+  # JWT 签名密钥（无状态 JWT 必需）：生产环境请通过环境变量覆盖，勿将固定密钥提交到公开仓库
+  jwt-secret-key: cz-ai-agent-jwt-secret-key-2026-please-override-in-prod
 
 
 

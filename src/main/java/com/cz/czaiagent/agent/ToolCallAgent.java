@@ -78,6 +78,8 @@ public class ToolCallAgent extends ReActAgent{
         // 禁用 Spring AI 内置的工具调用机制，自己维护选项和消息上下文，无需外部传参
         this.chatOptions = DashScopeChatOptions.builder()
                 .withProxyToolCalls(true)
+                // qwen3.7-plus 为多模态模型，需走 multimodal-generation 端点
+                .withMultiModel(true)
                 .build();
     }
 

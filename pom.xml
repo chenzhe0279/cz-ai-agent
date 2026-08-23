@@ -111,7 +111,6 @@
             <groupId>com.itextpdf</groupId>
             <artifactId>font-asian</artifactId>
             <version>9.1.0</version>
-            <scope>test</scope>
         </dependency>
         <!-- https://mvnrepository.com/artifact/com.itextpdf/layout -->
 
@@ -159,6 +158,12 @@
         <dependency>
             <groupId>cn.dev33</groupId>
             <artifactId>sa-token-spring-boot3-starter</artifactId>
+            <version>1.44.0</version>
+        </dependency>
+        <!-- Sa-Token JWT：无状态令牌，登录态由令牌自身携带，刷新/重启不失效 -->
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-jwt</artifactId>
             <version>1.44.0</version>
         </dependency>
         <!--支持结构化输出-->

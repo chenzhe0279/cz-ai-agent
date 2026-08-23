@@ -1,6 +1,6 @@
 # cz-ai-agent
 
-基于 **Java 21、Spring Boot 3、Spring AI** 的 AI Agent 工程。主服务提供恋爱咨询对话（LoveApp）、多步 ReAct 超级智能体（CzManus）、丰富的本地工具调用、RAG 检索增强、Human-in-the-loop（人机交互）与完整的用户体系（注册/登录/个人中心/邮箱验证/找回密码/VIP/管理员），并通过 MCP（stdio）集成图片检索子服务 `cz-image-search-mcp-server`。仓库还包含一个 Vue 3 前端 `cz-ai-agent-frontend`，以 SSE 流式方式与后端对话，界面为宇宙星空主题。
+基于 **Java 21、Spring Boot 3、Spring AI** 的 AI Agent 工程。主服务提供恋爱咨询对话（LoveApp）、多步 ReAct 超级智能体（CzManus）、丰富的本地工具调用、RAG 检索增强、Human-in-the-loop（人机交互）与完整的用户体系（注册/登录/个人中心/邮箱验证/找回密码/VIP/管理员），并通过 MCP（stdio）集成图片检索子服务 `cz-image-search-mcp-server`。仓库还包含一个 Vue 3 前端 `cz-ai-agent-frontend`，以 SSE 流式方式与后端对话；界面以**动态视频背景**（彗星日落/星云壁纸）为基调，主页采用完全透明、登录/注册/找回密码与聊天页、个人中心采用毛玻璃通透风格。
 
 > 当前代码整体处于**教学/演示/原型阶段**：用户接口与超级智能体接口已接入 Sa-Token 登录鉴权（管理员接口另做角色校验），「AI 恋爱大师」允许游客直接使用，但**未做限流与审计**；部分配置文件曾包含真实凭据，其中 `application-local.yaml` 已移出版本控制（详见[安全注意事项](#安全注意事项)），对外部署前必须处理。
 
@@ -9,14 +9,14 @@
 | 子项目 | 说明 | 端口 |
 | --- | --- | --- |
 | `cz-ai-agent`（本目录） | Spring Boot 主服务：AI 对话、智能体、工具系统、RAG、用户体系、MCP Client、SSE 接口 | `8123`，上下文路径 `/api` |
-| `cz-ai-agent-frontend` | Vue 3 + Vite 单页应用：聊天工作台、登录（双模式）/注册、找回密码、个人中心（管理员面板），宇宙星空主题 | `5173` |
+| `cz-ai-agent-frontend` | Vue 3 + Vite 单页应用：聊天工作台、登录（双模式）/注册、找回密码、个人中心（管理员面板），动态视频背景（主页透明 + 其余页面毛玻璃） | `5173` |
 | `cz-image-search-mcp-server` | 独立 MCP Server：基于 Pexels API 的图片搜索工具 `searchImage`，默认以 stdio 方式被主服务拉起 | SSE 模式 `8127`；stdio 模式无端口 |
 
 ## 功能特性
 
 - **恋爱大师（LoveApp）**：基于通义千问（DashScope）的恋爱咨询对话，**游客可直接使用**；支持多轮聊天记忆（当前默认 `InMemoryChatMemory`，另有 MySQL、文件两种实现）、结构化恋爱报告、RAG 检索增强，以及向量检索无果时降级查询 MySQL `love_knowledge` 表。
 - **超级智能体（CzManus）**：ReAct 多步推理代理，**需登录后使用**；最大步数 30，具备思考-行动循环、循环检测与干预、资源清理，并通过 SSE 实时推送思考正文、步骤结果与人工提问事件。
-- **工具系统**：文件读写、网页搜索、网页抓取、资源下载、终端命令、PDF 生成（支持嵌入图片）、邮件发送（纯文本 / HTML / 附件）、日期时间、人工确认（`askHuman`）、任务终止；并自动合并 MCP 提供的远程工具（图片搜索）。
+- **工具系统**：文件读写、网页搜索、网页抓取、资源下载、终端命令、PDF 生成（支持嵌入图片）、邮件发送（纯文本 / HTML / 附件）、日期时间、人工确认（`askHuman`）、任务终止；并自动合并 MCP 提供的远程工具（图片搜索）。PDF 工具具备**坏图容错**：嵌入前按文件头魔数校验真实格式（JPEG/PNG/GIF/BMP/WebP）、自动解压 gzip 包裹的伪图片、单张图片失败仅降级为占位文本而不中断整份 PDF，并在返回结果中报告"成功/失败张数与失败路径"；文本写入前还会过滤 emoji 等非 BMP 字符，避免内置中文字体编码报错。
 - **人机交互（Human-in-the-loop）**：智能体缺失关键信息、需求不明确或需确认时，通过 `askHuman` 工具经 SSE 向前端推送提问事件，阻塞等待用户回答（180 秒超时，超时自动降级），实现可中断、可补充信息的交互式执行。
 - **RAG 检索增强**：启动时将 `src/main/resources/document/` 下的 Markdown 知识文档向量化到内存向量库（`SimpleVectorStore`），支持状态元数据过滤、LLM 查询改写、百度翻译查询转换、DashScope 云端知识库、向量库 + MySQL 组合检索降级等多种策略。
 - **MCP 集成**：主服务作为 MCP Client（stdio）拉起图片搜索子服务，并保留高德地图 MCP 示例配置；子服务同时支持 stdio 与 SSE 两种模式。
@@ -74,11 +74,12 @@
 │   ├── mcp-image-servers.json  # MCP stdio 子服务启动配置（实际启用）
 │   └── mcp-servers.json        # 高德地图 MCP 示例配置（未被 application.yaml 引用）
 ├── cz-ai-agent-frontend/       # Vue 3 + Vite 前端
+│   ├── public/background/      # 全局动态视频背景资源：comet.mp4（彗星日落壁纸）+ 首帧占位图
 │   ├── src/App.vue             # 视图入口：首页 / 登录 / 注册 / 找回密码 / 个人中心 / 聊天
 │   ├── src/components/         # LoginView（双模式）/ RegisterView / ForgotPasswordView / ProfileView
 │   ├── src/store/auth.js       # 全局登录态（token 与用户信息）
 │   ├── src/services/           # http.js（axios + token 拦截）、user.js、chat.js（SSE）
-│   ├── src/styles.css / styles-auth.css  # 基础样式 + 宇宙星空主题样式
+│   ├── src/styles.css / styles-auth.css  # 基础样式 + 深空主题样式（含透明/毛玻璃方案）
 │   └── dist/                   # 生产构建产物（已提交）
 ├── cz-image-search-mcp-server/ # Pexels 图片搜索 MCP Server（stdio / SSE 双模式）
 ├── sql/create_table.sql        # 建表脚本 + 恋爱知识数据 + VIP 兑换码/邮箱验证码表 + 初始管理员
@@ -92,7 +93,7 @@
 
 智能体采用继承链 `BaseAgent → ReActAgent → ToolCallAgent → CzManus`：
 
-- `BaseAgent`：管理状态机、最大步数、消息上下文、SSE 推送与循环检测；提供同步 `run()` 与流式 `runStream()`（`SseEmitter`，超时 5 分钟）。
+- `BaseAgent`：管理状态机、最大步数、消息上下文、SSE 推送与循环检测；提供同步 `run()` 与流式 `runStream()`（`SseEmitter`，超时 10 分钟）。
 - `ReActAgent`：实现"思考（think）→ 行动（act）"的 ReAct 模式，`step()` 每次先思考再执行。
 - `ToolCallAgent`：禁用 Spring AI 内置自动工具调用（`proxyToolCalls=true`），手动维护对话上下文；通过 `ToolCallingManager` 执行工具并把工具请求/响应写回消息历史；检测到 `doTerminate` 工具时置状态为 `FINISHED`。
 - `CzManus`：配置 Agent 名称、系统提示词、下一步提示词、最大步数（30）与 `ChatClient`，通过构造注入全部工具、DashScope 模型与 `HumanInteractionService`。
@@ -145,12 +146,13 @@
 
 ### 7. 用户鉴权与邮箱验证机制
 
-- **令牌**：登录（账号密码 / 邮箱验证码）成功后返回 `{user, token}`，令牌默认有效期 30 天；前端存 `localStorage`，所有请求通过请求头 `satoken: <token>` 携带。
+- **令牌**：登录（账号密码 / 邮箱验证码）成功后返回 `{user, token}`，令牌为 **Sa-Token 无状态 JWT**（`token-style: jwt` + `StpLogicJwtForStateless`），有效期为 30 天；身份与过期时间由令牌自身携带，**不依赖后端内存会话**，因此刷新页面、后端重启后登录态依然有效。前端将令牌存 `localStorage`（键 `cz_ai_token`），所有请求通过请求头 `satoken: <token>` 携带；生产环境必须通过环境变量覆盖 `sa-token.jwt-secret-key`。
 - **登录拦截**：`SaTokenConfig` 注册 `SaInterceptor`，`/user/**` 与 `/ai/manus/**` 需要登录；公开放行：`/user/register`、`/user/register/code`、`/user/login/**`、`/user/password/**`，以及 CORS 预检 `OPTIONS`。
 - **角色校验**：`StpInterfaceImpl` 从数据库读取用户角色，管理员接口通过 `@SaCheckRole("admin")` 校验（`/user/add`、`/user/delete`、`/user/update/role`、`/user/list`、`/user/vip/code/generate`）。
 - **密码安全**：注册/改密/管理员建号均使用 Hutool BCrypt 加盐哈希；修改密码或重置密码后强制重新登录；管理员新建用户初始密码 `12345678`。
 - **邮箱验证码**：用途分为 `register`（注册）、`login`（邮箱登录）、`bind`（绑定邮箱）、`reset`（找回密码）；6 位数字、10 分钟有效、一次性使用、同一邮箱同用途 60 秒冷却，通过 `spring.mail` SMTP 发送。
-- **会话管理**：删除用户或修改角色时调用 `StpUtil.kickout()` 强制下线。
+- **会话管理**：无状态 JWT 模式下服务端无法主动吊销令牌，`StpUtil.kickout()` 会抛出 `ApiDisabledException`（代码已容错忽略）；删除用户后数据库 `isDelete=1`，其后续请求在读取用户时会按“未登录”处理；修改角色后权限实时按数据库角色校验。前端“退出登录”会同时清除本地令牌与用户缓存。
+- **错误码补充**：非管理员访问管理接口抛出 `NotRoleException`，由 `GlobalExceptionHandler` 统一映射为 `40101 无权限`。
 - **错误码**：未登录 `40100`、无权限 `40101`，统一由 `GlobalExceptionHandler` 包装为 `BaseResponse`。
 
 ## 快速开始
@@ -251,14 +253,16 @@ npm run dev
 | `spring.profiles.active` | `application.yaml` | 默认 `local`，加载本地密钥文件（`application-local.yaml` 已 gitignore，需本地自行创建） |
 | `spring.datasource.*` | `application.yaml` | MySQL 连接（默认 `localhost:3306/yu_picture`，账号密码为开发值，已提交） |
 | `server.port` / `server.servlet.context-path` | `application.yaml` | `8123` / `/api` |
+| `spring.mvc.async.request-timeout` | `application.yaml` | 异步/SSE 请求超时（毫秒，当前 `600000`，即 10 分钟），与 `SseEmitter` 超时配合防止长任务连接被断开 |
 | `spring.servlet.multipart.*` | `application.yaml` | 文件上传限制（单文件与总请求均 5MB），头像上传使用 |
 | `spring.mail.*` | `application-local.yaml` | SMTP 邮件（示例：163 邮箱，465 端口 SSL），邮箱验证码/找回密码依赖 |
 | `spring.ai.dashscope.api-key` / `model` | `application-local.yaml` | 通义千问 API Key 与模型（默认 `qwen-max`） |
+| `spring.ai.dashscope.chat.options.multi-model` | `application-local.yaml` | 多模态模型（如 `qwen3.7-plus`）必须设为 `true`，否则 SDK 走文本端点会报 `400 url error`；`ToolCallAgent` 代码中也已硬编码开启 |
 | `baidu.translate.app-id` / `security-key` | `application-local.yaml` | 百度翻译（`TranslationQueryTransformer`） |
 | `search-api.api-key` | `application-local.yaml` | SearchAPI（`WebSearchTool`，Baidu 引擎） |
 | `spring.ai.mcp.client.stdio.servers-configuration` | `application.yaml` | MCP stdio 服务配置，指向 `mcp-image-servers.json` |
 | `spring.ai.vectorstore.pgvector.*` | `application.yaml` | pgvector 参数（HNSW / 1536 维 / 余弦距离），当前实际未启用 |
-| `sa-token.token-name` / `sa-token.timeout` | `application.yaml` | 令牌名 `satoken`、有效期 30 天，前端通过请求头 `satoken` 携带 |
+| `sa-token.token-name` / `sa-token.timeout` / `sa-token.token-style` / `sa-token.jwt-secret-key` | `application.yaml` | 令牌名 `satoken`、有效期 30 天、`jwt` 无状态模式与签名密钥；前端通过请求头 `satoken` 携带，生产环境请用环境变量覆盖 `jwt-secret-key` |
 | `Pexels.apiKey` / `IMAGE_SEARCH_LIMIT` | MCP 子服务 | Pexels 密钥与单次返回图片数（默认 5） |
 
 ## API 接口
@@ -274,7 +278,7 @@ npm run dev
 | GET | `/ai/love_app/chat/sse?message=&chatId=` | 公开 | 恋爱大师流式对话（`Flux<String>`） |
 | GET | `/ai/love_app/chat/sent_event?message=&chatId=` | 公开 | 恋爱大师 SSE 事件流（`Flux<ServerSentEvent<String>>`） |
 | GET | `/ai/love_app/chat/sse/emitter?message=&chatId=` | 公开 | 恋爱大师 SSE 对话（`SseEmitter`，超时 180 秒，前端实际使用） |
-| GET | `/ai/manus/chat?message=` | 登录 | 超级智能体流式对话（`SseEmitter`，超时 300 秒；每次请求创建新的 `CzManus` 实例） |
+| GET | `/ai/manus/chat?message=` | 登录 | 超级智能体流式对话（`SseEmitter`，超时 600 秒；每次请求创建新的 `CzManus` 实例） |
 | POST | `/ai/manus/human-answer` | 登录 | 提交人类回答，请求体 `{"requestId":"...","answer":"..."}`；找到请求返回 200，未找到返回 404 |
 
 ### 用户
@@ -324,7 +328,7 @@ npm run dev
 | `WebScrapingTool` | `scrapeWebPage` | Jsoup 抓取网页正文 | - |
 | `ResourceDownloadTool` | `downloadResource` | 下载远程资源 | `tmp/download` |
 | `TerminalOperationTool` | `executeTerminalCommand` | 执行终端命令（Windows `cmd.exe /c`） | - |
-| `PDFGenerationTool` | `generatePDFWithImage` / `generatePDF` | iText 9 生成 PDF，支持 `[图片:本地路径]` 内嵌图片与中文排版 | `tmp/pdf` |
+| `PDFGenerationTool` | `generatePDFWithImage` / `generatePDF` | iText 9 生成 PDF：支持 `[图片:本地路径]` 内嵌图片、中文排版；内嵌前做图片魔数校验（JPEG/PNG/GIF/BMP/WebP）并自动解压 gzip 伪图片，单张坏图降级为占位文本且返回失败统计；文本写入前过滤 emoji 等非 BMP 字符 | `tmp/pdf` |
 | `EmailTool` | `sendEmail` / `sendHtmlEmail` / `sendEmailWithAttachment` | 纯文本 / HTML / 附件邮件 | - |
 | `DateTimeTool` | `getCurrentDate` / `getCurrentTime` / `getCurrentDateTime` / `getDateTimeByTimezone` / `getDayOfWeek` | 日期时间与时区感知 | - |
 | `AskHumanTool` | `askHuman` | 向前端提问并等待回答（180 秒超时） | - |
@@ -359,14 +363,18 @@ npm run dev
 
 ## 前端说明
 
-- **页面结构**：单页应用通过视图状态切换（无 vue-router）：首页 → 登录（双模式）/ 注册 / 找回密码 → 聊天 → 个人中心。
+- **页面结构**：单页应用通过视图状态切换（无 vue-router）：首页 → 登录（双模式）/ 注册 / 找回密码 → 聊天 → 个人中心。当前页面同步到 URL hash（如 `#/chat/love`、`#/chat/manus`），**刷新页面后停留在原页面**，并支持浏览器前进/后退；恋爱大师会话会记住 `chatId`（延续后端会话记忆），草稿与历史消息由 `localStorage` 持久化，刷新后原地恢复。
+- **首页**：高端落地页结构——大字 Hero（渐变描边标题）+「开始对话 / 创建账号」双 CTA + 双 AI 应用展示卡 + 能力特性条（实时流式 / 多会话管理 / 双 AI 伙伴 / 账号体系），整体直接铺在动态视频背景上（原极光/星尘/网格装饰层已隐藏以完全透出背景）。
+- **多会话管理**：聊天页左侧会话列表支持新建、切换、删除（自定义确认弹框，**至少保留一个会话**）；会话、草稿与消息均持久化到 `localStorage`，刷新/关闭浏览器后保留；移动端会话列表为抽屉式。
 - **登录页**：「账号密码」与「邮箱验证码」两个选项卡；邮箱模式支持发送验证码（60 秒倒计时）；「立即注册」「忘记密码」入口两种模式均可直达。
 - **注册页**：账号 + 密码 + 邮箱 + 验证码，验证码发送成功后才能提交，注册成功后自动登录。
 - **找回密码**：输入绑定邮箱 → 发送验证码（成功发送后才可进入下一步）→ 设置新密码 → 重新登录。
-- **登录态**：token 存 `localStorage`（键 `cz_ai_token`）；`http.js` 请求拦截自动附加 `satoken` 头，响应拦截统一解包 `BaseResponse`，遇 `40100/40101` 或 HTTP 401/403 时清空登录态并回到登录页；SSE 请求（`chat.js`）同样携带令牌。
+- **登录态**：token 存 `localStorage`（键 `cz_ai_token`），用户信息另缓存于 `cz_ai_user`；刷新页面时先用本地缓存恢复用户（不闪烁、不掉登录），再向后端 `/user/current` 校验令牌，仅明确收到 `40100/40101` 或 HTTP 401/403 才清空登录态（网络/服务瞬时异常不会误登出）；`http.js` 请求拦截自动附加 `satoken` 头，响应拦截统一解包 `BaseResponse`；SSE 请求（`chat.js`）同样携带令牌。
 - **游客与登录**：游客可进入「AI 恋爱大师」聊天；「AI 超级智能体」在未登录时点击会跳转登录页（卡片上显示"登录后可用"）。
+- **智能体提问超时**：`askHuman` 提问弹窗带 180 秒倒计时（与后端 `HumanInteractionService` 超时一致）；超时未回复时自动关闭弹窗，并在对话气泡中展示"待确认问题 + 由于该问题人类并没有给出相关回复，我将基于自己的理解进行思考……"。
+- **深度思考提示**：超级智能体在工具执行/思考间隙、恋爱大师在等待首个响应分片时，对话气泡内显示"正在深度思考中……"（带动态圆点），提升等待体验。
 - **个人中心**：资料编辑（昵称/简介）、修改密码（改后需重新登录）、邮箱绑定（发送验证码 + 60 秒倒计时）、VIP 兑换、管理员面板（用户分页/搜索、改角色、删除、新建用户、批量生成兑换码）；头像通过 `+` 按钮选择本地图片上传，即时预览，主页/聊天页右上角同步显示头像。
-- **视觉风格**：登录/注册/找回密码/个人中心采用宇宙星空主题（星云渐变、星球光环、流星动画、发光卡片、选项卡切换），聊天页保留原有深空风格。
+- **视觉风格**：全站以**动态视频背景**为主角（`public/background/comet.mp4`，4K 彗星日落霞光壁纸压缩版，5 秒循环 + 首帧占位图，全局固定一层，所有页面共用）；主页保持**完全透明无模糊**（卡片仅剩边框和文字），登录/注册/找回密码、聊天页、个人中心均为**毛玻璃通透**（轻微 6~12px 模糊 + 极淡底色），既凸显背景又保证文字可读性；深空星点、极光、行星等装饰层已弱化以透出背景。
 
 ## 测试
 
@@ -393,6 +401,7 @@ npm run dev
   - `src/main/resources/mcp-servers.json`：高德地图 API Key；
   - `src/main/resources/application.yaml`：MySQL 默认账号密码（及被注释的 PostgreSQL 连接串）。
   请立即**撤销/轮换**这些密钥，并迁移到环境变量、密钥管理服务或未提交的本地配置。
+- `sa-token.jwt-secret-key` 当前为提交到仓库的固定演示密钥：任何人拿到该密钥即可伪造登录令牌。**生产环境必须通过环境变量（如 `SATOKEN_JWT_SECRET_KEY`）注入随机强密钥**，修改密钥会导致所有已签发的 JWT 失效（全员需重新登录）。
 - AI 接口与用户接口**已启用登录鉴权**，但**未做限流与审计**；初始管理员账号 `admin / admin123456` 已写入数据库脚本，上线前必须修改密码。
 - 邮箱验证码为 6 位纯数字且明文存库，已做 60 秒冷却与一次性使用；生产环境建议加密存储、限制尝试次数并接入验证码风控。
 - `TerminalOperationTool` 可执行任意终端命令、`FileOperationTool` 可读写文件；对外提供 Agent 能力前应增加命令白名单、路径约束、权限隔离与审计。
@@ -403,6 +412,8 @@ npm run dev
 
 - 健康检查路径拼写为 `/helth`（非 `health`），属于源码现状，README 按实际路径记录。
 - **访问控制**：`/user/**` 与 `/ai/manus/**` 需要登录（携带 `satoken` 请求头）；公开接口包括注册、登录（两种方式）、找回密码与恋爱大师。新增公开接口时需同步在 `SaTokenConfig` 中加入排除规则。
+- SSE 异步请求在收尾阶段会触发一次 async dispatch，此时 Sa-Token 上下文（ThreadLocal）不会被重新初始化；`SaTokenConfig` 拦截器已对此容错（捕获 `SaTokenContextException` 直接放行，登录态在首次请求已校验）。
+- 无状态 JWT 令牌在有效期内无法被服务端吊销：修改/重置密码、删除用户或修改角色后，旧令牌在 30 天到期前仍可解析出原登录 ID（删除用户的请求会因数据库 `isDelete=1` 被拒绝；角色变化按数据库实时生效）。如需“改密即全部下线”等能力，可改回服务端会话模式或引入 Redis 版令牌黑名单。
 - 管理员通过 `/user/add` 创建的用户初始密码固定为 `12345678`，用户登录后应在个人中心修改。
 - 邮箱验证码与找回密码依赖 **SMTP 邮件服务**（`application-local.yaml` 中的 `spring.mail.*`）；未配置时发送验证码会提示"邮件服务未配置"。
 - LoveApp 当前使用 `InMemoryChatMemory`，重启后对话记忆丢失；`MysqlChatMemory` / `FileBaseChatMemory` 已实现但需手动切换。

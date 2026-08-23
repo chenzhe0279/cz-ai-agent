@@ -184,8 +184,8 @@ public abstract class BaseAgent {
      * @return 执行结果
      */
     public SseEmitter runStream(String userPrompt){
-        // 创建 SseEmitter 实例，设置超时时间为 300000 毫秒（5分钟），防止长时间无数据推送导致连接超时断开
-        SseEmitter emitter = new SseEmitter(300000L);
+        // 创建 SseEmitter 实例，设置超时时间为 600000 毫秒（10分钟），防止长时间无数据推送导致连接超时断开
+        SseEmitter emitter = new SseEmitter(600000L);
 
         // 使用 CompletableFuture.runAsync 将智能体的执行逻辑放入异步线程中运行，避免阻塞当前 HTTP 请求主线程
         CompletableFuture.runAsync(() -> {
