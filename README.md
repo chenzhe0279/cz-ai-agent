@@ -2,8 +2,6 @@
 
 基于 **Java 21、Spring Boot 3、Spring AI** 的 AI Agent 工程。主服务提供恋爱咨询对话（LoveApp）、多步 ReAct 超级智能体（CzManus）、丰富的本地工具调用、RAG 检索增强、Human-in-the-loop（人机交互）与完整的用户体系（注册/登录/个人中心/邮箱验证/找回密码/VIP/管理员），并通过 MCP（stdio）集成图片检索子服务 `cz-image-search-mcp-server`。仓库还包含一个 Vue 3 前端 `cz-ai-agent-frontend`，以 SSE 流式方式与后端对话；界面以**动态视频背景**（彗星日落/星云壁纸）为基调，主页采用完全透明、登录/注册/找回密码与聊天页、个人中心采用毛玻璃通透风格。
 
-> 当前代码整体处于**教学/演示/原型阶段**：用户接口与超级智能体接口已接入 Sa-Token 登录鉴权（管理员接口另做角色校验），「AI 恋爱大师」允许游客直接使用，但**未做限流与审计**；部分配置文件曾包含真实凭据，其中 `application-local.yaml` 已移出版本控制（详见[安全注意事项](#安全注意事项)），对外部署前必须处理。
-
 ## 仓库组成
 
 | 子项目 | 说明 | 端口 |
@@ -390,46 +388,3 @@ npm run dev
 
 注意：多数测试是 `@SpringBootTest` 集成测试，**依赖 MySQL、DashScope、邮件 SMTP 或外部 API**；未配置凭据或网络受限时可能失败，建议按类单独执行。
 
-## 安全注意事项
-
-> 以下问题在对外发布前必须处理。
-
-- **`application-local.yaml` 已移出版本控制**：已加入 `.gitignore`（同时覆盖 `.yml` / `.yaml` 两种后缀）并执行 `git rm --cached`，后续提交不会再包含该文件。但该文件**曾进入过提交历史**，其中的密钥可能已暴露，仍建议**撤销/轮换**（DashScope Key、163 邮箱账号与授权码、百度翻译 AppID/密钥、SearchAPI Key）。
-- **其余真实凭据仍被版本库追踪**（具体值不在 README 中展示），涉及文件：
-  - `src/main/java/com/cz/czaiagent/demo/invoke/TestApiKey.java`：DashScope Key；
-  - `cz-image-search-mcp-server/src/main/resources/application.yaml`：Pexels API Key；
-  - `src/main/resources/mcp-servers.json`：高德地图 API Key；
-  - `src/main/resources/application.yaml`：MySQL 默认账号密码（及被注释的 PostgreSQL 连接串）。
-  请立即**撤销/轮换**这些密钥，并迁移到环境变量、密钥管理服务或未提交的本地配置。
-- `sa-token.jwt-secret-key` 当前为提交到仓库的固定演示密钥：任何人拿到该密钥即可伪造登录令牌。**生产环境必须通过环境变量（如 `SATOKEN_JWT_SECRET_KEY`）注入随机强密钥**，修改密钥会导致所有已签发的 JWT 失效（全员需重新登录）。
-- AI 接口与用户接口**已启用登录鉴权**，但**未做限流与审计**；初始管理员账号 `admin / admin123456` 已写入数据库脚本，上线前必须修改密码。
-- 邮箱验证码为 6 位纯数字且明文存库，已做 60 秒冷却与一次性使用；生产环境建议加密存储、限制尝试次数并接入验证码风控。
-- `TerminalOperationTool` 可执行任意终端命令、`FileOperationTool` 可读写文件；对外提供 Agent 能力前应增加命令白名单、路径约束、权限隔离与审计。
-- 头像上传已限制类型与大小（jpg/png/gif/webp，≤5MB），文件名为 UUID 且访问路径经过白名单校验，防止路径穿越。
-- `mcp-image-servers.json` 的 stdio 配置由主服务直接执行 JAR，部署时需确认 JAR 来源可信、路径可控。
-
-## 已知问题与注意事项
-
-- 健康检查路径拼写为 `/helth`（非 `health`），属于源码现状，README 按实际路径记录。
-- **访问控制**：`/user/**` 与 `/ai/manus/**` 需要登录（携带 `satoken` 请求头）；公开接口包括注册、登录（两种方式）、找回密码与恋爱大师。新增公开接口时需同步在 `SaTokenConfig` 中加入排除规则。
-- SSE 异步请求在收尾阶段会触发一次 async dispatch，此时 Sa-Token 上下文（ThreadLocal）不会被重新初始化；`SaTokenConfig` 拦截器已对此容错（捕获 `SaTokenContextException` 直接放行，登录态在首次请求已校验）。
-- 无状态 JWT 令牌在有效期内无法被服务端吊销：修改/重置密码、删除用户或修改角色后，旧令牌在 30 天到期前仍可解析出原登录 ID（删除用户的请求会因数据库 `isDelete=1` 被拒绝；角色变化按数据库实时生效）。如需“改密即全部下线”等能力，可改回服务端会话模式或引入 Redis 版令牌黑名单。
-- 管理员通过 `/user/add` 创建的用户初始密码固定为 `12345678`，用户登录后应在个人中心修改。
-- 邮箱验证码与找回密码依赖 **SMTP 邮件服务**（`application-local.yaml` 中的 `spring.mail.*`）；未配置时发送验证码会提示"邮件服务未配置"。
-- LoveApp 当前使用 `InMemoryChatMemory`，重启后对话记忆丢失；`MysqlChatMemory` / `FileBaseChatMemory` 已实现但需手动切换。
-- 上传的头像保存在 `tmp/avatar/`（gitignore），清理 `tmp` 目录会导致头像文件丢失（数据库中的相对路径仍会保留）。
-- pgvector 相关配置（`application.yaml` 参数、`PgVectorVectorStoreConfig`、`PgVectorStoreAutoConfiguration` 排除项）尚未打通，启用需同步调整数据源与依赖。
-- 前端依赖使用 `latest`，未锁定版本，构建结果可能随依赖升级变化；`dist/` 构建产物已提交。
-- 根目录存在一个空的 `package-lock.json`（`packages: {}`），疑似残留，无实际用途。
-- `ITApp` 演示类已整体注释，不会在启动时自动调用模型；若恢复启用会在启动时产生模型调用费用。
-- MCP 子服务需在启动主服务前完成打包；主服务目录下 `tmp/` 为运行时产物（gitignore）。
-
-## 后续规划
-
-- 为 AI 接口与用户接口补充限流、登录失败次数限制、验证码尝试次数限制与操作审计日志；`@AuthCheck` 注解与 `AuthInterceptor` 切面可作为替代方案启用。
-- `application-local.yaml` 已移出版本控制；继续清理其余已提交的凭据（`TestApiKey.java`、`mcp-servers.json`、MCP 子服务 `application.yaml`、主 `application.yaml` 数据源），必要时重写 git 历史清除旧密钥，并全面切换环境变量/密钥服务。
-- 将对话记忆切换为 MySQL 持久化，并设计会话清理策略。
-- 打通 PostgreSQL + pgvector 持久化向量库，替代启动时内存建库的方案。
-- 用户体系可补充第三方登录、扫码登录与更细粒度权限；邮箱验证码可增加加密存储、图形验证码与更严格的频率限制；头像可增加裁剪/压缩与对象存储（OSS/MinIO）上传。
-- 为 MCP 子服务增加独立部署、健康检查与主服务启动前置校验。
-- 将 LoveApp 的 RAG / 工具 / MCP / 报告等内部能力暴露为受控 HTTP 接口，并补充用户模块与邮箱流程的单元测试。
