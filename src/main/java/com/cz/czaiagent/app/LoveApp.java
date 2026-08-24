@@ -58,10 +58,7 @@ public class LoveApp {
         //基于内存的持久化对话记忆
         ChatMemory chatMemory = new InMemoryChatMemory();
 
-        String defaultSystemPrompt = systemPromptTemplate.render(Map.of(
-                "userStatus", "单身、恋爱、已婚三种",
-                "question", "单身状态询问社交圈拓展及追求心仪对象的困扰；恋爱状态询问沟通、习惯差异引发的矛盾；已婚状态询问家庭责任与亲属关系处理的问题"
-        ));
+        String defaultSystemPrompt = systemPromptTemplate.render(Map.of());
 
         chatClient = ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(defaultSystemPrompt)
@@ -139,21 +136,22 @@ public class LoveApp {
         return loveReport;
     }
 
-    //RAG检索增强生成
-    @Resource
-    private VectorStore loveAppVectorStore;
+    //RAG检索增强生成（向量库已停用：为避免启动时调用嵌入 API 产生费用，相关注入与使用代码全部注释）
+    //@Resource
+    //private VectorStore loveAppVectorStore;
 
     //@Resource
     //private Advisor loveAppRagCloudAdvisor;
 
-    @Resource
-    private VectorStore pgVectorVectorStore;
+    //@Resource
+    //private VectorStore pgVectorVectorStore;
 
     @Resource
     private JdbcTemplate jdbcTemplate;
-    @Resource
-    private QueryRewriter queryRewriter;
+    //@Resource
+    //private QueryRewriter queryRewriter;
 
+    /*
     public String doChatWithRag(String message, String chatId) {
         String rewriteMessage = queryRewriter.rewrite(message);
         ChatResponse chatResponse = chatClient
@@ -181,15 +179,16 @@ public class LoveApp {
         log.info("content: {}", content);
         return content;
     }
+    */
 
-
+    /*
     /**
      * 降级搜索，优先使用向量库检索，无结果时自动降级查询 MySQL
      *
      * @param message 用户输入
      * @param chatId  会话ID
      * @return AI回复文本
-     */
+     *\/
     public String doChatWithFallbackSearch(String message, String chatId, String status) {
         // 手动构建向量库检索器（绕过 Spring AI M6 版 RetrievalAugmentationAdvisor 的已知 Bug）
 
@@ -239,6 +238,7 @@ public class LoveApp {
         log.info("content: {}", content);
         return content;
     }
+    */
 
     @Resource
     private ToolCallback[] allTools;

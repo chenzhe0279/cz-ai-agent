@@ -34,7 +34,7 @@ function createChatId() {
 
 // ---------------- 多会话管理（localStorage 持久化，刷新/关闭浏览器后保留） ----------------
 // 结构：{ love: { current: 会话ID, list: [会话] }, manus: { current, list: [会话] } }
-// 会话：{ id, chatId(仅恋爱大师), title, draft, messages[], createdAt, updatedAt }
+// 会话：{ id, chatId(仅智能助手), title, draft, messages[], createdAt, updatedAt }
 const CONVERSATIONS_KEY = 'cz_ai_conversations'
 const MAX_CONVERSATIONS_PER_APP = 30
 const MAX_MESSAGES_PER_CONVERSATION = 200
@@ -109,6 +109,290 @@ const isSubmittingHumanAnswer = ref(false)
 const humanCountdown = ref(0)
 const convPanelOpen = ref(false) // 移动端会话列表抽屉开关
 const deleteTarget = ref(null) // 待删除的会话（非空时显示确认弹框）
+
+// ---------------- 对话活动轨道（Conversation Activity Rail / 轮次标记条） ----------------
+// 规则：一个气泡 = 一个标记（用户问题、智能体的每一个 step 气泡都各占一根短线）；
+// 悬停高亮并预览该气泡内容，点击平滑滚动（弹性波浪缓动）跳转并短暂高亮。
+const turns = computed(() => {
+  return messages.value.map((msg, index) => ({
+    start: index,
+    end: index,
+    user: msg.role === 'user' ? msg.content : '',
+    reply: msg.role === 'assistant' ? msg.content : '',
+  }))
+})
+
+const hoverTurnIndex = ref(-1)
+const activeTurnIndex = ref(-1)
+const highlightTurnIndex = ref(-1)
+const markerScales = ref([])
+let highlightTimer = null
+let activeScrollRaf = null
+let scrollAnimRaf = null
+
+// 弹簧物理跟随（Spring-physics follow）：高亮位置以弹簧模拟跟随鼠标，
+// 快速上下移动时产生滞后、过冲回弹的连锁波浪效果
+const RAIL_STIFFNESS = 220
+const RAIL_DAMPING = 16
+let railTarget = 0
+let railFollow = 0
+let railVelocity = 0
+let railSpringRaf = null
+let railHovering = false
+
+function onRailMouseMove(e) {
+  const rail = turnRailEl.value
+  const n = turns.value.length
+  if (!rail || n === 0) return
+  const rect = rail.getBoundingClientRect()
+  const y = e.clientY - rect.top
+  if (!railHovering) {
+    railHovering = true
+    railFollow = nearestMarkerIndex(y)
+    railVelocity = 0
+  }
+  railTarget = nearestMarkerIndex(y)
+  if (!railSpringRaf) {
+    railSpringRaf = requestAnimationFrame(tickRailSpring)
+  }
+}
+
+function onRailMouseLeave() {
+  railHovering = false
+  if (railSpringRaf) {
+    cancelAnimationFrame(railSpringRaf)
+    railSpringRaf = null
+  }
+  railVelocity = 0
+  hoverTurnIndex.value = -1
+  markerScales.value = new Array(turns.value.length).fill(1)
+}
+
+// 返回与鼠标位置最近（线性插值）的标记索引，0..n-1 的浮点数
+function nearestMarkerIndex(y) {
+  const n = turns.value.length
+  const positions = turnPositions.value
+  if (n <= 1) return 0
+  if (y <= positions[0]) return 0
+  if (y >= positions[n - 1]) return n - 1
+  for (let i = 0; i < n - 1; i++) {
+    if (y >= positions[i] && y <= positions[i + 1]) {
+      const span = Math.max(1, positions[i + 1] - positions[i])
+      return i + (y - positions[i]) / span
+    }
+  }
+  return n - 1
+}
+
+function tickRailSpring() {
+  railSpringRaf = null
+  const n = turns.value.length
+  if (!n) return
+  const dt = 0.016
+  railVelocity += (railTarget - railFollow) * RAIL_STIFFNESS * dt
+  railVelocity *= Math.max(0, 1 - RAIL_DAMPING * dt)
+  railFollow += railVelocity * dt
+  if (Math.abs(railTarget - railFollow) < 0.005 && Math.abs(railVelocity) < 0.02) {
+    railFollow = railTarget
+    railVelocity = 0
+  }
+  const hovered = Math.round(railFollow)
+  hoverTurnIndex.value = hovered >= 0 && hovered < n ? hovered : -1
+  // 以跟随位置为中心的高斯波浪轮廓：离得近的标记放大，形成随弹簧移动的波浪
+  const wave = new Array(n).fill(1)
+  for (let i = 0; i < n; i++) {
+    const d = Math.abs(i - railFollow)
+    wave[i] = 1 + 0.55 * Math.exp(-(d * d) / 2.2)
+  }
+  markerScales.value = wave
+  if (railHovering && (Math.abs(railTarget - railFollow) > 0.005 || Math.abs(railVelocity) > 0.02)) {
+    railSpringRaf = requestAnimationFrame(tickRailSpring)
+  }
+}
+
+function turnPreview(turn) {
+  const text = (turn.user || turn.reply || '').replace(/\s+/g, ' ')
+  return text.length > 40 ? `${text.slice(0, 40)}…` : text
+}
+
+function isMessageInHighlightedTurn(index) {
+  const h = highlightTurnIndex.value
+  if (h < 0 || h >= turns.value.length) return false
+  const turn = turns.value[h]
+  return index >= turn.start && index <= turn.end
+}
+
+function animateChatScroll(targetTop, duration = 650) {
+  const body = chatBody.value
+  if (!body) return
+  if (scrollAnimRaf) cancelAnimationFrame(scrollAnimRaf)
+  const start = body.scrollTop
+  const delta = targetTop - start
+  const t0 = performance.now()
+  // 弹性波浪缓动：先冲过目标再回弹
+  function easeOutElastic(x) {
+    const c4 = (2 * Math.PI) / 3
+    if (x === 0 || x === 1) return x
+    return Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * c4) + 1
+  }
+  function step(now) {
+    const p = Math.min(1, (now - t0) / duration)
+    body.scrollTop = start + delta * easeOutElastic(p)
+    if (p < 1) scrollAnimRaf = requestAnimationFrame(step)
+  }
+  scrollAnimRaf = requestAnimationFrame(step)
+}
+
+function jumpToTurn(index) {
+  const turn = turns.value[index]
+  if (!turn || !chatBody.value) return
+  const el = chatBody.value.querySelector(`[data-index="${turn.start}"]`)
+  if (!el) return
+  const bodyRect = chatBody.value.getBoundingClientRect()
+  const targetTop = el.getBoundingClientRect().top - bodyRect.top + chatBody.value.scrollTop
+  animateChatScroll(targetTop)
+  highlightTurnIndex.value = index
+  if (highlightTimer) clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => {
+    highlightTurnIndex.value = -1
+  }, 1500)
+}
+
+function updateActiveTurn() {
+  const list = turns.value
+  if (!list.length || !chatBody.value) return
+  let active = list.length - 1
+  for (let i = 0; i < list.length; i++) {
+    const el = chatBody.value.querySelector(`[data-index="${list[i].start}"]`)
+    if (!el) continue
+    const bodyRect = chatBody.value.getBoundingClientRect()
+    const top = el.getBoundingClientRect().top - bodyRect.top + chatBody.value.scrollTop
+    if (top <= chatBody.value.scrollTop + 140) active = i
+    else break
+  }
+  activeTurnIndex.value = active
+}
+
+function onChatBodyScroll() {
+  if (activeScrollRaf) return
+  activeScrollRaf = requestAnimationFrame(() => {
+    activeScrollRaf = null
+    updateActiveTurn()
+  })
+}
+
+// 轨道定位：对话少时整组垂直居中；历史多了以后铺满整轨（最早的一条线在最上方，新的向下排）
+const MARKER_H = 3
+const MARKER_MAX_GAP = 14
+const MARKER_MIN_GAP = 3
+const turnRailEl = ref(null)
+const railInnerHeight = ref(0)
+const railPaddingTop = ref(0)
+let railObserver = null
+
+const turnPositions = computed(() => {
+  const n = turns.value.length
+  const h = railInnerHeight.value
+  const padTop = railPaddingTop.value
+  if (n === 0) return []
+  const positions = new Array(n)
+  if (h <= 0) {
+    // 尚未测量到高度时的兜底：从上往下均分
+    for (let i = 0; i < n; i++) positions[i] = padTop + (i * 100) / Math.max(1, n - 1)
+    return positions
+  }
+  const naturalGap = (h - n * MARKER_H) / Math.max(1, n - 1)
+  if (naturalGap >= MARKER_MIN_GAP) {
+    // 居中状态：整组放在轨道中间，间距有上限
+    const gap = Math.min(MARKER_MAX_GAP, naturalGap)
+    const total = n * MARKER_H + (n - 1) * gap
+    const start = Math.max(0, (h - total) / 2)
+    for (let i = 0; i < n; i++) positions[i] = padTop + start + i * (MARKER_H + gap)
+  } else {
+    // 历史多了：铺满整轨，最早的一条线在最上方，新的向下排
+    for (let i = 0; i < n; i++) positions[i] = padTop + (i * (h - MARKER_H)) / Math.max(1, n - 1)
+  }
+  return positions
+})
+
+function measureRail() {
+  const el = turnRailEl.value
+  if (!el) return
+  const style = getComputedStyle(el)
+  const pt = parseFloat(style.paddingTop) || 0
+  const pb = parseFloat(style.paddingBottom) || 0
+  railPaddingTop.value = pt
+  railInnerHeight.value = Math.max(0, el.clientHeight - pt - pb)
+}
+
+function setupRail() {
+  const el = turnRailEl.value
+  if (!el) return
+  if (railObserver) railObserver.disconnect()
+  railObserver = new ResizeObserver(() => measureRail())
+  railObserver.observe(el)
+  measureRail()
+}
+
+// ---------------- 背景切换（三套动态背景，localStorage 持久化） ----------------
+const BACKGROUNDS_KEY = 'cz_ai_background'
+const BACKGROUND_AUTO_KEY = 'cz_ai_background_auto'
+// 三套背景：彗星日落（视频）/ 星空流星（图片 + Ken Burns 动效）/ 星星眼（图片 + Ken Burns 动效）
+const backgrounds = [
+  { id: 'comet', name: '彗星日落', type: 'video', src: '/background/comet.mp4', poster: '/background/comet-poster.webp' },
+  { id: 'stars', name: '星空流星', type: 'image', src: '/background/stars.webp' },
+  { id: 'starry-eyes', name: '星星眼', type: 'image', src: '/background/starry-eyes.webp' },
+]
+
+function loadBackgroundIndex() {
+  try {
+    const raw = Number(localStorage.getItem(BACKGROUNDS_KEY))
+    if (Number.isInteger(raw) && raw >= 0 && raw < backgrounds.length) return raw
+  } catch {
+    // 存储不可用时使用默认背景
+  }
+  return 0
+}
+
+const bgIndex = ref(loadBackgroundIndex())
+const bgAuto = ref(false)
+let bgAutoTimer = null
+const currentBackground = computed(() => backgrounds[bgIndex.value])
+
+function saveBackground() {
+  try {
+    localStorage.setItem(BACKGROUNDS_KEY, String(bgIndex.value))
+    localStorage.setItem(BACKGROUND_AUTO_KEY, bgAuto.value ? '1' : '0')
+  } catch {
+    // 存储不可用时忽略（隐私模式等）
+  }
+}
+
+function nextBackground() {
+  bgIndex.value = (bgIndex.value + 1) % backgrounds.length
+  saveBackground()
+}
+
+function prevBackground() {
+  bgIndex.value = (bgIndex.value - 1 + backgrounds.length) % backgrounds.length
+  saveBackground()
+}
+
+function restartBackgroundAuto() {
+  if (bgAutoTimer) clearInterval(bgAutoTimer)
+  bgAutoTimer = null
+  if (bgAuto.value) {
+    bgAutoTimer = setInterval(() => {
+      nextBackground()
+    }, 10000)
+  }
+}
+
+function toggleBackgroundAuto() {
+  bgAuto.value = !bgAuto.value
+  saveBackground()
+  restartBackgroundAuto()
+}
 
 // 当前 AI 应用下的会话列表与选中会话
 const appConversations = computed(() => conversationsState.value[currentApp.value]?.list || [])
@@ -210,6 +494,46 @@ function confirmDeleteConversation() {
   saveConversations()
 }
 
+// 重命名会话：点击 ✎ 进入内联编辑，Enter / 失焦保存，Esc 取消
+const editingConvId = ref(null)
+const editingConvTitle = ref('')
+
+function startRenameConversation(conv) {
+  editingConvId.value = conv.id
+  editingConvTitle.value = conv.title || ''
+  nextTick(() => {
+    const input = document.querySelector('.conv-rename-input')
+    input?.focus()
+    input?.select()
+  })
+}
+
+function commitRenameConversation() {
+  if (editingConvId.value == null) return
+  const conv = appConversations.value.find((c) => c.id === editingConvId.value)
+  if (conv) {
+    const title = editingConvTitle.value.replace(/\s+/g, ' ').trim()
+    if (title) {
+      conv.title = title.length > 30 ? `${title.slice(0, 30)}…` : title
+      conv.updatedAt = Date.now()
+      saveConversations()
+    }
+  }
+  editingConvId.value = null
+  editingConvTitle.value = ''
+}
+
+function cancelRenameConversation() {
+  editingConvId.value = null
+  editingConvTitle.value = ''
+}
+
+// ---------------- 生成中断 / 修改提问并重新生成 ----------------
+const activeAbortController = ref(null)
+const streamUserIndex = ref(-1)
+const editingUserIndex = ref(-1)
+const editingUserText = ref('')
+
 // 重置与当前会话绑定的运行时状态（流式、提问弹窗等）
 function resetChatRuntimeState() {
   draft.value = ''
@@ -219,6 +543,10 @@ function resetChatRuntimeState() {
   humanQuestion.value = null
   humanAnswer.value = ''
   clearHumanTimeout()
+  editingConvId.value = null
+  editingConvTitle.value = ''
+  editingUserIndex.value = -1
+  editingUserText.value = ''
 }
 
 // 会话标题：取第一条用户消息前 18 个字符
@@ -244,7 +572,7 @@ let humanTimeoutTimer = null
 let humanCountdownTimer = null
 
 const apps = [
-  { id: 'love', icon: '♡', avatar: '恋', name: 'AI 恋爱大师', description: '懂你心意，也懂如何把话说得恰到好处。', color: 'rose', tag: 'RELATIONSHIP GUIDE' },
+  { id: 'love', icon: '◈', avatar: '助', name: 'AI 智能助手', description: '学习、工作、生活、编程，随时随地为你解答。', color: 'rose', tag: 'GENERAL ASSISTANT' },
   { id: 'manus', icon: '✦', avatar: '智', name: 'AI 超级智能体', description: '把复杂的问题，转化为清晰的行动方案。', color: 'violet', tag: 'AUTONOMOUS AGENT' },
 ]
 const app = computed(() => apps.find((item) => item.id === currentApp.value))
@@ -259,7 +587,7 @@ const userAvatarUrl = computed(() => {
 })
 // 等待后端响应时显示“正在深度思考中……”气泡：
 // - 超级智能体：流式进行中且尚未产出任何正文（工具执行/思考间隙，且非等待人工提问）
-// - 恋爱大师：流式进行中且尚未收到第一个响应分片
+// - 智能助手：流式进行中且尚未收到第一个响应分片
 const thinking = computed(() => {
   if (!isStreaming.value || humanQuestion.value) return false
   if (currentApp.value === 'manus') return !pendingStepContent.value
@@ -267,7 +595,7 @@ const thinking = computed(() => {
   return false
 })
 const welcome = computed(() => currentApp.value === 'love'
-  ? '你好，我是你的恋爱军师。今天有什么心事想和我聊聊？'
+  ? '你好，我是你的 AI 智能助手。有什么问题，尽管问我。'
   : '你好，我是 AI 超级智能体。告诉我你的目标，我会协助你一步步完成。')
 
 watch(currentApp, (appId) => {
@@ -279,6 +607,16 @@ watch(currentApp, (appId) => {
   document.title = title
   document.querySelector('meta[name="description"]')?.setAttribute('content', description)
 })
+
+// 进入聊天视图后测量轨道高度并监听变化（窗口尺寸 / 轨道尺寸变化时自动重算）
+watch(
+  [view, currentApp],
+  async () => {
+    await nextTick()
+    setupRail()
+  },
+  { flush: 'post' },
+)
 
 // 视图变化时同步 URL hash（支持刷新停留与浏览器前进/后退）
 watch([view, currentApp], () => {
@@ -303,6 +641,9 @@ watch(
 onMounted(async () => {
   window.addEventListener('hashchange', onHashChange)
   await initAuth()
+  bgAuto.value = localStorage.getItem(BACKGROUND_AUTO_KEY) === '1'
+  restartBackgroundAuto()
+  window.addEventListener('resize', measureRail)
   window.addEventListener('auth:unauthorized', handleUnauthorized)
   // 刷新后恢复：进入聊天页时确保有一个可用的会话
   if (view.value === 'chat') {
@@ -317,6 +658,13 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (bgAutoTimer) clearInterval(bgAutoTimer)
+  if (highlightTimer) clearTimeout(highlightTimer)
+  if (activeScrollRaf) cancelAnimationFrame(activeScrollRaf)
+  if (scrollAnimRaf) cancelAnimationFrame(scrollAnimRaf)
+  if (railSpringRaf) cancelAnimationFrame(railSpringRaf)
+  if (railObserver) railObserver.disconnect()
+  window.removeEventListener('resize', measureRail)
   window.removeEventListener('auth:unauthorized', handleUnauthorized)
   window.removeEventListener('hashchange', onHashChange)
 })
@@ -368,23 +716,87 @@ async function handleLogout() {
   backHome()
 }
 
-async function send() {
+function send() {
   if (currentApp.value === 'manus' && !auth.user) {
     view.value = 'login'
     return
   }
-  const conv = currentConversation.value
   const content = draft.value.trim()
-  if (!content || isStreaming.value || !conv) return
+  if (!content || isStreaming.value || !currentConversation.value) return
   draft.value = ''
-  ensureConversationTitle(conv, content)
-  conv.messages.push({ role: 'user', content })
+  runSend(content, -1)
+}
+
+// 中断当前 AI 生成：中止流式请求，并清掉本次生成产生的（未完成的）助手气泡，回到用户提问处
+async function stopGeneration() {
+  activeAbortController.value?.abort()
+  const conv = currentConversation.value
+  if (!conv || streamUserIndex.value < 0) return
+  conv.messages = conv.messages.slice(0, streamUserIndex.value + 1)
+  streamUserIndex.value = -1
+  pendingStepContent.value = ''
+  activeAssistantMessageIndex.value = null
   conv.updatedAt = Date.now()
+  saveConversations()
+  await scrollToBottom()
+}
+
+// 编辑用户提问：仅允许在未生成时进入编辑态
+function startEditUserMessage(index) {
+  if (isStreaming.value) return
+  const msg = messages.value[index]
+  if (!msg || msg.role !== 'user') return
+  editingUserIndex.value = index
+  editingUserText.value = msg.content
+}
+
+function cancelEditUserMessage() {
+  editingUserIndex.value = -1
+  editingUserText.value = ''
+}
+
+// 确认修改：若被修改的提问是"最后一条消息"（即刚发出、尚无回复），替换后自动重新生成；
+// 否则仅更新历史文本
+function confirmEditUserMessage() {
+  const index = editingUserIndex.value
+  const text = editingUserText.value.trim()
+  editingUserIndex.value = -1
+  editingUserText.value = ''
+  if (index < 0 || !text) return
+  const msg = messages.value[index]
+  if (!msg || msg.role !== 'user') return
+  if (index === messages.value.length - 1) {
+    runSend(text, index)
+  } else {
+    msg.content = text
+    const conv = currentConversation.value
+    if (conv) {
+      conv.updatedAt = Date.now()
+      saveConversations()
+    }
+  }
+}
+
+// 统一发送/重发：replaceUserIndex >= 0 表示"修改已有提问并重新生成"
+async function runSend(content, replaceUserIndex) {
+  const conv = currentConversation.value
+  if (!conv) return
+  if (replaceUserIndex >= 0) {
+    conv.messages[replaceUserIndex].content = content
+    conv.messages = conv.messages.slice(0, replaceUserIndex + 1)
+  } else {
+    conv.messages.push({ role: 'user', content })
+  }
+  conv.updatedAt = Date.now()
+  ensureConversationTitle(conv, content)
   activeAssistantMessageIndex.value = null
   pendingStepContent.value = ''
   isStreaming.value = true
+  streamUserIndex.value = replaceUserIndex >= 0 ? replaceUserIndex : conv.messages.length - 1
   await scrollToBottom()
 
+  const controller = new AbortController()
+  activeAbortController.value = controller
   try {
     await streamChat(currentApp.value, content, conv.chatId, ({ event, data }) => {
       if (currentApp.value === 'love') {
@@ -420,7 +832,7 @@ async function send() {
         activeAssistantMessageIndex.value = conv.messages.length - 1
         scrollToBottom()
       }
-    })
+    }, controller.signal)
     if (pendingStepContent.value) {
       conv.messages.push({ role: 'assistant', content: pendingStepContent.value })
       activeAssistantMessageIndex.value = conv.messages.length - 1
@@ -429,9 +841,13 @@ async function send() {
       conv.messages.push({ role: 'assistant', content: '本次对话没有返回内容，请稍后重试。' })
     }
   } catch (error) {
-    conv.messages.push({ role: 'assistant', content: `抱歉，连接服务时出现问题：${error.message}` })
+    if (error?.name !== 'AbortError') {
+      conv.messages.push({ role: 'assistant', content: `抱歉，连接服务时出现问题：${error.message}` })
+    }
   } finally {
     isStreaming.value = false
+    activeAbortController.value = null
+    streamUserIndex.value = -1
     if (conv) conv.updatedAt = Date.now()
     await scrollToBottom()
   }
@@ -509,8 +925,10 @@ async function scrollToBottom() {
 </script>
 
 <template>
-  <!-- 全局动态背景：彗星日落霞光（主页 / 聊天 / 登录注册 / 个人中心共用） -->
+  <!-- 全局动态背景（三套可切换：彗星日落视频 / 星空流星 / 星星眼，主页 / 聊天 / 登录注册 / 个人中心共用） -->
   <video
+    v-if="currentBackground.type === 'video'"
+    :key="currentBackground.id"
     class="app-bg-video"
     autoplay
     muted
@@ -518,13 +936,33 @@ async function scrollToBottom() {
     playsinline
     webkit-playsinline
     preload="auto"
-    poster="/background/comet-poster.webp"
+    :poster="currentBackground.poster"
     aria-hidden="true"
     tabindex="-1"
   >
-    <source src="/background/comet.mp4" type="video/mp4" />
+    <source :src="currentBackground.src" type="video/mp4" />
   </video>
+  <div
+    v-else
+    :key="currentBackground.id"
+    class="app-bg-image"
+    :style="{ backgroundImage: `url(${currentBackground.src})` }"
+    aria-hidden="true"
+  ></div>
   <div class="app-bg-overlay" aria-hidden="true"></div>
+
+  <!-- 背景切换控件 -->
+  <div class="bg-switcher" role="group" aria-label="背景切换">
+    <button class="bg-switch-btn" title="上一个背景" @click="prevBackground">‹</button>
+    <button class="bg-switch-label" title="点击切换背景" @click="nextBackground">{{ currentBackground.name }}</button>
+    <button class="bg-switch-btn" title="下一个背景" @click="nextBackground">›</button>
+    <button
+      class="bg-switch-btn"
+      :class="{ active: bgAuto }"
+      :title="bgAuto ? '停止自动轮播' : '自动轮播背景（10 秒切换）'"
+      @click="toggleBackgroundAuto"
+    >{{ bgAuto ? '❚❚' : '▶' }}</button>
+  </div>
 
   <!-- 启动加载：登录态恢复完成前不渲染业务页面，避免刷新时闪现“未登录” -->
   <main v-if="!auth.ready" class="shell app-home">
@@ -576,7 +1014,7 @@ async function scrollToBottom() {
       <div class="hero">
         <p class="eyebrow">PERSONAL INTELLIGENCE, EXPANDED</p>
         <h1>驶入未知，<em>与星辰同频。</em></h1>
-        <p class="hero-sub">{{ auth.user ? `欢迎回来，${userDisplayName}。选择一位 AI 伙伴，让灵感、情感与行动在此刻汇聚。` : '游客可直接体验「AI 恋爱大师」，登录后解锁「AI 超级智能体」。' }}</p>
+        <p class="hero-sub">{{ auth.user ? `欢迎回来，${userDisplayName}。选择一位 AI 伙伴，让灵感、情感与行动在此刻汇聚。` : '游客可直接体验「AI 智能助手」，登录后解锁「AI 超级智能体」。' }}</p>
         <div class="hero-cta">
           <button class="btn-primary" @click="openApp('love')"><span>开始对话</span><b>→</b></button>
           <button v-if="!auth.user" class="btn-ghost" @click="view = 'register'">创建账号</button>
@@ -597,7 +1035,7 @@ async function scrollToBottom() {
       <div class="feature-strip">
         <div class="feature"><b>实时流式</b><span>逐字响应，对话如临其境</span></div>
         <div class="feature"><b>多会话管理</b><span>历史记录与草稿自动保存</span></div>
-        <div class="feature"><b>双 AI 伙伴</b><span>恋爱军师 · 超级智能体</span></div>
+        <div class="feature"><b>双 AI 伙伴</b><span>智能助手 · 超级智能体</span></div>
         <div class="feature"><b>账号体系</b><span>邮箱验证 · 数据安全可靠</span></div>
       </div>
       <footer class="site-footer"><span>© {{ new Date().getFullYear() }} CZ AI WORKSPACE</span><span>智能对话 · 探索无限可能</span></footer>
@@ -623,24 +1061,60 @@ async function scrollToBottom() {
           <button class="conv-new" title="创建新对话" @click="startNewConversation">＋</button>
         </div>
         <div class="conv-list">
-          <button
+          <div
             v-for="conv in appConversations"
             :key="conv.id"
             class="conv-item"
             :class="{ active: conv.id === currentConversationId }"
+            role="button"
+            tabindex="0"
             :title="conv.title"
             @click="selectConversation(conv.id)"
+            @keydown.enter="selectConversation(conv.id)"
           >
             <span v-if="appConversations.length > 1" class="conv-del" title="删除对话" @click.stop="deleteConversation(conv.id)">×</span>
-            <span class="conv-title">{{ conv.title }}</span>
+            <span class="conv-edit" title="重命名对话" @click.stop="startRenameConversation(conv)">✎</span>
+            <input
+              v-if="editingConvId === conv.id"
+              v-model="editingConvTitle"
+              class="conv-rename-input"
+              :placeholder="conv.title"
+              @keydown.enter.prevent="commitRenameConversation()"
+              @keydown.esc.prevent="cancelRenameConversation()"
+              @blur="commitRenameConversation()"
+              @click.stop
+            />
+            <span v-else class="conv-title">{{ conv.title }}</span>
             <span class="conv-meta">{{ conv.messages.length }} 条 · {{ formatConvTime(conv.updatedAt) }}</span>
-          </button>
+          </div>
           <p v-if="!appConversations.length" class="conv-empty">暂无对话，点击上方 ＋ 创建</p>
         </div>
       </aside>
 
       <!-- 主聊天区 -->
       <div class="chat-main">
+        <!-- 对话活动轨道：每根短线对应一轮对话，悬停预览、点击跳转 -->
+        <div
+          v-if="turns.length"
+          ref="turnRailEl"
+          class="turn-rail"
+          role="navigation"
+          aria-label="对话轮次导航"
+          @mousemove="onRailMouseMove"
+          @mouseleave="onRailMouseLeave"
+        >
+          <button
+            v-for="(turn, idx) in turns"
+            :key="idx"
+            class="turn-marker"
+            :class="{ hovered: idx === hoverTurnIndex, active: idx === activeTurnIndex, current: idx === turns.length - 1 }"
+            :style="{ top: `${turnPositions[idx] ?? 0}px`, transform: `scaleX(${markerScales[idx] ?? 1})` }"
+            :title="turnPreview(turn)"
+            @click="jumpToTurn(idx)"
+          >
+            <span class="turn-tip">{{ turnPreview(turn) }}</span>
+          </button>
+        </div>
         <header class="chat-header">
           <button class="back" aria-label="返回首页" @click="backHome">←</button>
           <button class="conv-toggle" aria-label="对话列表" @click="convPanelOpen = true">☰</button>
@@ -657,11 +1131,36 @@ async function scrollToBottom() {
             <button class="nav-link" @click="handleLogout">退出</button>
           </div>
         </header>
-        <div ref="chatBody" class="chat-body">
+        <div ref="chatBody" class="chat-body" @scroll="onChatBodyScroll">
           <div class="intro"><span :class="['intro-icon', app.color]">{{ app.icon }}</span><p>{{ welcome }}</p><small v-if="currentApp === 'love'">会话 ID：{{ currentConversation?.chatId }}</small></div>
-          <article v-for="(message, index) in messages" :key="index" class="message" :class="message.role">
+          <article
+            v-for="(message, index) in messages"
+            :key="index"
+            class="message"
+            :data-index="index"
+            :class="{ [message.role]: true, flash: isMessageInHighlightedTurn(index) }"
+          >
             <span class="avatar" :class="message.role === 'assistant' ? app.color : ''">{{ message.role === 'user' ? '我' : app.avatar }}</span>
-            <div class="bubble">{{ message.content }}<i v-if="message.role === 'assistant' && isStreaming && index === messages.length - 1" class="cursor"></i></div>
+            <div class="msg-body">
+              <template v-if="editingUserIndex === index">
+                <textarea
+                  v-model="editingUserText"
+                  class="msg-edit-input"
+                  rows="2"
+                  placeholder="修改提问内容…"
+                  @keydown.enter.exact.prevent="confirmEditUserMessage"
+                  @keydown.esc="cancelEditUserMessage"
+                ></textarea>
+                <div class="msg-edit-actions">
+                  <button type="button" class="msg-edit-cancel" @click="cancelEditUserMessage">取消</button>
+                  <button type="button" class="msg-edit-confirm" @click="confirmEditUserMessage">修改并重新生成</button>
+                </div>
+              </template>
+              <template v-else>
+                <div class="bubble">{{ message.content }}<i v-if="message.role === 'assistant' && isStreaming && index === messages.length - 1" class="cursor"></i></div>
+                <button v-if="message.role === 'user'" class="msg-edit-btn" title="修改该提问" @click="startEditUserMessage(index)">✎</button>
+              </template>
+            </div>
           </article>
           <article v-if="thinking" class="message assistant">
             <span class="avatar" :class="app.color">{{ app.avatar }}</span>
@@ -673,7 +1172,8 @@ async function scrollToBottom() {
         </div>
         <form class="composer" @submit.prevent="send">
           <textarea v-model="draft" rows="1" placeholder="输入你的问题…" @keydown.enter.exact.prevent="send"></textarea>
-          <button type="submit" :disabled="!draft.trim() || isStreaming" aria-label="发送消息">↑</button>
+          <button v-if="isStreaming" type="button" class="stop-btn" aria-label="停止生成" @click="stopGeneration">■</button>
+          <button v-else type="submit" :disabled="!draft.trim() || isStreaming" aria-label="发送消息">↑</button>
         </form>
         <p class="hint">Enter 发送 · Shift + Enter 换行</p>
         <footer class="chat-footer">© {{ new Date().getFullYear() }} CZ AI WORKSPACE · 智能对话服务</footer>

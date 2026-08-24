@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
-@Configuration
+//@Configuration
 public class LoveAppVectorStoreConfig {
     @Resource
     private LoveAppDocumentLoader loveAppDocumentLoader;
@@ -32,7 +32,7 @@ public class LoveAppVectorStoreConfig {
      * @param dashscopeEmbeddingModel 用于文本向量化的嵌入模型实例
      * @return 已初始化并加载文档数据的 VectorStore 实例
      */
-    @Bean
+    //@Bean
     public VectorStore loveAppVectorStore(EmbeddingModel dashscopeEmbeddingModel) {
         //构建一个向量数据库
         SimpleVectorStore simpleVectorStore = SimpleVectorStore.builder(dashscopeEmbeddingModel).build();

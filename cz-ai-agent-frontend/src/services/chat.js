@@ -1,13 +1,13 @@
 import { API_BASE_URL, getToken } from './http'
 
 const endpoints = {
-  // Spring SseEmitter 接口，恋爱大师通过 chatId 维持独立会话。
+  // Spring SseEmitter 接口，AI 智能助手通过 chatId 维持独立会话。
   love: '/ai/love_app/chat/sse/emitter',
   manus: '/ai/manus/chat',
 }
 
 /** 以 SSE / chunked 文本方式读取后端实时回答。 */
-export async function streamChat(type, message, chatId, onEvent) {
+export async function streamChat(type, message, chatId, onEvent, signal) {
   const params = new URLSearchParams({ message })
   if (type === 'love') params.set('chatId', chatId)
 
@@ -19,6 +19,7 @@ export async function streamChat(type, message, chatId, onEvent) {
   const response = await fetch(`${API_BASE_URL}${endpoints[type]}?${params}`, {
     method: 'GET',
     headers,
+    signal,
   })
   if (response.status === 401) {
     window.dispatchEvent(new CustomEvent('auth:unauthorized'))

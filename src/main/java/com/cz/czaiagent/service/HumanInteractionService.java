@@ -1,5 +1,9 @@
 package com.cz.czaiagent.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
@@ -12,8 +16,13 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class HumanInteractionService {
 
+    private static final Logger log = LoggerFactory.getLogger(HumanInteractionService.class);
+
     // 定义等待人类回答的超时时间常量：180 秒（3 分钟），超时后降级处理，避免智能体永久卡死
     private static final long ANSWER_TIMEOUT_SECONDS = 180;
+
+    // 用于将提问事件序列化为 JSON 字符串，保证前端收到的 data 一定是合法 JSON
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     // 线程本地变量：存储"当前线程"绑定的会话 ID
     // 作用：智能体在异步线程中运行，askHuman 工具调用时无需层层传参即可拿到本会话 ID
@@ -70,6 +79,7 @@ public class HumanInteractionService {
 
         // 降级判断一：如果没有会话 ID 或找不到推送器（例如测试环境、非 SSE 调用场景）
         if (sessionId == null || emitter == null) {
+            log.warn("askHuman 降级：无可用前端 SSE 会话（sessionId={}, emitter={}），返回降级文本", sessionId, emitter == null ? "null" : "存在");
             // 直接返回降级提示文本，让大模型基于已有信息继续，而不是报错中断任务
             return "当前没有可用的前端会话，请基于已有信息继续完成任务。";
         }
@@ -84,13 +94,21 @@ public class HumanInteractionService {
         try {
             // 封装提问事件对象，包含请求 ID（供前端回传）和问题内容
             HumanQuestionEvent event = new HumanQuestionEvent(requestId, question);
+            // 显式序列化为 JSON 字符串，避免 SseEmitter 对对象数据序列化行为不确定导致前端解析失败
+            String eventJson;
+            try {
+                eventJson = objectMapper.writeValueAsString(event);
+            } catch (JsonProcessingException e) {
+                log.warn("序列化 human_question 事件失败，降级继续", e);
+                return "提问事件序列化失败，请基于已有信息继续完成任务。";
+            }
 
             // 通过 SSE 向前端推送一个名为 "human_question" 的事件，数据体为上面的事件对象
             // 前端监听该事件名，收到后弹窗展示问题并收集用户输入
             emitter.send(
                     SseEmitter.event()
                             .name("human_question")  // 自定义事件名，前端 EventSource 按此名称监听
-                            .data(event)               // 事件数据，会被序列化为 JSON 发送
+                            .data(eventJson)           // 事件数据：JSON 字符串，前端可直接 JSON.parse
             );
 
             // 关键阻塞点：当前线程在此等待，最多等 180 秒

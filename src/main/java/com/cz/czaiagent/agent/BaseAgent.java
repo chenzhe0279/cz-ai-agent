@@ -119,6 +119,36 @@ public abstract class BaseAgent {
             log.warn("SSE 推送事件失败，event={}", eventName, e);
         }
     }
+
+    /**
+     * 安全推送普通文本事件：
+     * - 连接正常：返回 true；
+     * - 客户端已断开或 emitter 已完成（用户停止/刷新/关闭页面、流已被结束）：
+     *   记录 warn 并返回 false，调用方应提前结束循环，避免 IllegalStateException 打断收尾。
+     */
+    private boolean trySendEmitter(SseEmitter emitter, String content) {
+        try {
+            emitter.send(content);
+            return true;
+        } catch (IOException e) {
+            log.warn("SSE 推送失败（连接可能已断开），提前结束智能体循环: {}", e.getMessage());
+            return false;
+        } catch (IllegalStateException e) {
+            log.warn("SSE 推送失败（emitter 已完成，客户端可能已停止/关闭），提前结束智能体循环");
+            return false;
+        }
+    }
+
+    /**
+     * 安全关闭 SSE 连接：emitter 已被容器/客户端完成时忽略，避免再次抛 IllegalStateException。
+     */
+    private void completeEmitterQuietly(SseEmitter emitter) {
+        try {
+            emitter.complete();
+        } catch (IllegalStateException e) {
+            log.debug("emitter 已完成，跳过 complete()");
+        }
+    }
     /**
      * 运行代理
      *
@@ -251,7 +281,10 @@ public abstract class BaseAgent {
                     // List<String> results = new ArrayList<>();
 
                     // 通过 SSE 将当前步骤的执行结果实时推送给客户端
-                    emitter.send(result);
+                    if (!trySendEmitter(emitter, result)) {
+                        // 客户端已断开：继续执行没有意义，提前结束循环，避免收尾报错
+                        break;
+                    }
                 }
                 
                 // 循环结束后，检查是否是因为达到了最大步数限制而退出循环
@@ -259,11 +292,11 @@ public abstract class BaseAgent {
                     // 若是达到最大步数，将智能体状态强制修改为 FINISHED
                     state = AgentState.FINISHED;
                     // 通过 SSE 向前端推送达到最大步数的提示信息
-                    emitter.send("执行结束: 达到最大步骤 (" + maxSteps + ")");
+                    trySendEmitter(emitter, "执行结束: 达到最大步骤 (" + maxSteps + ")");
                 }
                 
                 // 所有步骤正常执行完毕，正常关闭 SSE 连接，通知客户端流式数据已全部发送完成
-                emitter.complete();
+                completeEmitterQuietly(emitter);
             } catch (Exception e) {
                 // 若在执行过程中发生任何异常，将智能体状态修改为 ERROR（错误）
                 state = AgentState.ERROR;

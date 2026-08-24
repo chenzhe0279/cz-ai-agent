@@ -1,6 +1,6 @@
 # cz-ai-agent
 
-基于 **Java 21、Spring Boot 3、Spring AI** 的 AI Agent 工程。主服务提供恋爱咨询对话（LoveApp）、多步 ReAct 超级智能体（CzManus）、丰富的本地工具调用、RAG 检索增强、Human-in-the-loop（人机交互）与完整的用户体系（注册/登录/个人中心/邮箱验证/找回密码/VIP/管理员），并通过 MCP（stdio）集成图片检索子服务 `cz-image-search-mcp-server`。仓库还包含一个 Vue 3 前端 `cz-ai-agent-frontend`，以 SSE 流式方式与后端对话；界面以**动态视频背景**（彗星日落/星云壁纸）为基调，主页采用完全透明、登录/注册/找回密码与聊天页、个人中心采用毛玻璃通透风格。
+基于 **Java 21、Spring Boot 3、Spring AI** 的 AI Agent 工程。主服务提供**通用 AI 智能助手**（后端类名与接口沿用旧命名 LoveApp、`/love_app/*`）、多步 ReAct 超级智能体（CzManus）、丰富的本地工具调用、RAG 检索增强、Human-in-the-loop（人机交互）与完整的用户体系（注册/登录/个人中心/邮箱验证/找回密码/VIP/管理员），并通过 MCP（stdio）集成图片检索子服务 `cz-image-search-mcp-server`。仓库还包含一个 Vue 3 前端 `cz-ai-agent-frontend`，以 SSE 流式方式与后端对话；界面以**三套可切换的动态背景**（彗星日落视频 / 星空流星 / 星星眼，右下角按钮切换并支持自动轮播）为基调，主页采用完全透明、登录/注册/找回密码与聊天页、个人中心采用毛玻璃通透风格。
 
 ## 仓库组成
 
@@ -12,7 +12,7 @@
 
 ## 功能特性
 
-- **恋爱大师（LoveApp）**：基于通义千问（DashScope）的恋爱咨询对话，**游客可直接使用**；支持多轮聊天记忆（当前默认 `InMemoryChatMemory`，另有 MySQL、文件两种实现）、结构化恋爱报告、RAG 检索增强，以及向量检索无果时降级查询 MySQL `love_knowledge` 表。
+- **AI 智能助手（LoveApp）**：基于通义千问（DashScope）的通用 AI 对话助手，**游客可直接使用**；可回答学习、工作、生活、编程、情感等各领域问题，支持多轮聊天记忆（当前默认 `InMemoryChatMemory`，另有 MySQL、文件两种实现）、结构化对话总结报告；旧的恋爱知识 RAG 链路已随通用化改造停用（相关配置保留在代码中，未启用）。
 - **超级智能体（CzManus）**：ReAct 多步推理代理，**需登录后使用**；最大步数 30，具备思考-行动循环、循环检测与干预、资源清理，并通过 SSE 实时推送思考正文、步骤结果与人工提问事件。
 - **工具系统**：文件读写、网页搜索、网页抓取、资源下载、终端命令、PDF 生成（支持嵌入图片）、邮件发送（纯文本 / HTML / 附件）、日期时间、人工确认（`askHuman`）、任务终止；并自动合并 MCP 提供的远程工具（图片搜索）。PDF 工具具备**坏图容错**：嵌入前按文件头魔数校验真实格式（JPEG/PNG/GIF/BMP/WebP）、自动解压 gzip 包裹的伪图片、单张图片失败仅降级为占位文本而不中断整份 PDF，并在返回结果中报告"成功/失败张数与失败路径"；文本写入前还会过滤 emoji 等非 BMP 字符，避免内置中文字体编码报错。
 - **人机交互（Human-in-the-loop）**：智能体缺失关键信息、需求不明确或需确认时，通过 `askHuman` 工具经 SSE 向前端推送提问事件，阻塞等待用户回答（180 秒超时，超时自动降级），实现可中断、可补充信息的交互式执行。
@@ -25,7 +25,7 @@
   - 找回密码：通过绑定邮箱 + 验证码重置密码；
   - VIP：管理员生成兑换码，用户兑换后升级为 vip 并记录会员有效期；
   - 管理员：用户分页查询 / 新增 / 软删除 / 修改角色 / 批量生成兑换码；
-  - 鉴权：`/user/**` 与 `/ai/manus/**` 需登录，管理员接口需 `admin` 角色，恋爱大师对游客开放。
+  - 鉴权：`/user/**` 与 `/ai/manus/**` 需登录，管理员接口需 `admin` 角色，AI 智能助手对游客开放。
 - **基础设施**：统一响应/异常处理、全局 CORS、Knife4j / OpenAPI 接口文档、Long 型 JSON 精度保护、Sa-Token 鉴权、循环检测防呆机制。
 
 ## 技术栈
@@ -50,7 +50,7 @@
 ├── src/main/java/com/cz/czaiagent/
 │   ├── agent/                  # 智能体框架：BaseAgent / ReActAgent / ToolCallAgent / CzManus
 │   │   └── model/AgentState.java
-│   ├── app/                    # LoveApp（恋爱大师业务入口，ITApp 演示类已注释）
+│   ├── app/                    # LoveApp（AI 智能助手业务入口，类名沿用旧命名，ITApp 演示类已注释）
 │   ├── advisor/                # ChatClient Advisor：日志、违禁词、Re2 重读、鉴权（后两者/鉴权未启用）
 │   ├── chatmemory/             # 聊天记忆：内存（默认）、MySQL、Kryo 文件三种实现
 │   ├── controller/             # AiController、UserController（用户/鉴权/邮箱）、FileController（头像文件）、HelthController
@@ -67,12 +67,12 @@
 ├── src/main/resources/
 │   ├── application.yaml        # 主配置：端口/上下文、数据源、MCP Client、Sa-Token、multipart、文档配置
 │   ├── application-local.yaml  # 本地密钥（DashScope / 邮件 / 百度翻译 / 搜索 API）——已 gitignore 并取消追踪，clone 后需自行创建
-│   ├── document/               # 恋爱知识库 Markdown（单身 / 恋爱 / 已婚）
-│   ├── prompts/                # 恋爱专家与恋爱报告提示词模板
+│   ├── document/               # 旧恋爱知识库 Markdown（通用化后未启用，可删除）
+│   ├── prompts/                # AI 助手系统提示词与对话总结报告模板（文件名沿用 love-*）
 │   ├── mcp-image-servers.json  # MCP stdio 子服务启动配置（实际启用）
 │   └── mcp-servers.json        # 高德地图 MCP 示例配置（未被 application.yaml 引用）
 ├── cz-ai-agent-frontend/       # Vue 3 + Vite 前端
-│   ├── public/background/      # 全局动态视频背景资源：comet.mp4（彗星日落壁纸）+ 首帧占位图
+│   ├── public/background/      # 全局动态背景资源：comet.mp4（彗星日落视频）+ stars.webp / starry-eyes.webp（星空流星 / 星星眼图片）+ 首帧占位图
 │   ├── src/App.vue             # 视图入口：首页 / 登录 / 注册 / 找回密码 / 个人中心 / 聊天
 │   ├── src/components/         # LoginView（双模式）/ RegisterView / ForgotPasswordView / ProfileView
 │   ├── src/store/auth.js       # 全局登录态（token 与用户信息）
@@ -80,7 +80,7 @@
 │   ├── src/styles.css / styles-auth.css  # 基础样式 + 深空主题样式（含透明/毛玻璃方案）
 │   └── dist/                   # 生产构建产物（已提交）
 ├── cz-image-search-mcp-server/ # Pexels 图片搜索 MCP Server（stdio / SSE 双模式）
-├── sql/create_table.sql        # 建表脚本 + 恋爱知识数据 + VIP 兑换码/邮箱验证码表 + 初始管理员
+├── sql/create_table.sql        # 建表脚本 + 旧恋爱知识数据（遗留）+ VIP 兑换码/邮箱验证码表 + 初始管理员
 ├── tmp/                        # 运行时文件目录：file/ download/ pdf/ chat-memory/ avatar/（已 gitignore）
 └── src/test/                   # SpringBootTest 集成测试（部分依赖数据库/模型/外部 API）
 ```
@@ -120,9 +120,11 @@
 | `GET /api/ai/manus/chat` | `assistant_message` | 大模型本轮思考正文（纯文本） |
 | 同上 | `human_question` | JSON：`{"requestId":"...","question":"..."}` |
 | 同上 | 默认 `message` | `Step N: ...` 步骤结果、`执行结束: 达到最大步骤 (30)`、`执行错误: ...` 等 |
-| `GET /api/ai/love_app/chat/sse/emitter` | 默认 `message` | 恋爱大师回复文本分片（连续追加，形成打字机效果） |
+| `GET /api/ai/love_app/chat/sse/emitter` | 默认 `message` | AI 智能助手回复文本分片（连续追加，形成打字机效果） |
 
 前端通过 `fetch` 读取响应流，按空行切分 SSE 事件块并解析 `event:` / `data:` 字段；`Step N` 强制独立气泡，`human_question` 触发弹窗。
+
+说明：客户端在任务结束前断开（点击「■ 停止」、刷新或关闭页面）时，智能体会在下一次 SSE 推送时检测到连接已结束并**安全提前结束循环**（仅 WARN 日志），不再抛出 `ResponseBodyEmitter has already completed`；此前已完成的业务（如邮件发送）不受影响。
 
 ### 5. 人机交互（Human-in-the-loop）
 
@@ -130,16 +132,17 @@
 2. 大模型调用 `askHuman` 工具时，服务端生成 `requestId`，通过 SSE 推送 `human_question` 事件，并在 `CompletableFuture` 上阻塞等待（最多 180 秒）。
 3. 前端弹窗收集回答，`POST /api/ai/manus/human-answer`（请求体 `{requestId, answer}`）；服务端通过 `submitAnswer()` 唤醒阻塞线程，将"人类的回答是：xxx"作为工具结果返回给模型。
 4. 降级策略：无前端会话、回答为空、超时或异常时均返回提示文本，让模型基于已有信息与合理假设继续，避免任务卡死。
+5. 健壮性：提问事件以**显式 JSON 字符串**发送（前端可直接 `JSON.parse`），避免对象序列化行为差异导致前端弹窗收不到；无可用会话时记录 WARN 日志并降级，便于排查。
 
 ### 6. RAG 检索链路
 
-当前 LoveApp 内部实现了多种检索增强方案（未全部暴露为 HTTP 接口）：
+当前 LoveApp 内部保留了多种**旧恋爱知识 RAG 检索增强**方案（通用助手模式下默认未启用，未全部暴露为 HTTP 接口）：
 
 - **内存向量库**（`LoveAppVectorStoreConfig`）：启动时用 `MarkdownDocumentReader` 加载 `document/*.md`，按水平分割线切分，并从文件名提取 `status` 元数据（单身 / 恋爱 / 已婚），用 DashScope Embedding 写入 `SimpleVectorStore`。
 - **自定义 RAG Advisor**（`LoveAppRagCustomAdvisorFactory`）：`VectorStoreDocumentRetriever` + 状态过滤 + 相似度阈值 0.5 + TopK 3，未命中时输出兜底拒答文案。
 - **组合检索降级**（`LoveAppCompositeDocumentRetriever`）：优先向量库，未命中时按 `status` 从 MySQL `love_knowledge` 表随机取 3 条作为降级上下文。
 - **查询改写 / 转换**：`QueryRewriter`（LLM 改写）与 `TranslationQueryTransformer`（百度翻译，中译英，失败回退原文）。
-- **云端知识库**（`LoveAppRagCloudAdvisorConfig`）：DashScope 云端索引"恋爱大师"（`DashScopeDocumentRetriever`），当前在 `doChatWithRag` 中处于注释状态。
+- **云端知识库**（`LoveAppRagCloudAdvisorConfig`）：DashScope 云端索引旧恋爱知识库（`DashScopeDocumentRetriever`），当前在 `doChatWithRag` 中处于注释状态。
 - **pgvector**：`PgVectorVectorStoreConfig`（HNSW + 余弦距离 + 1536 维）整体被注释，主应用也排除了 `PgVectorStoreAutoConfiguration`，当前未启用。
 
 ### 7. 用户鉴权与邮箱验证机制
@@ -169,7 +172,7 @@
 mysql -u root -p < sql/create_table.sql
 ```
 
-脚本会创建库 `yu_picture`，并创建 `chat_memory`、`user`、`picture`、`space`、`space_user`、`love_knowledge`、`vip_code`、`email_verify_code` 等表及索引，插入恋爱知识库示例数据，并写入初始管理员账号 **`admin` / `admin123456`**（BCrypt 加密，账号已存在时自动跳过）。`user` 表需包含 `vipExpireTime`、`vipCode`、`vipNumber`、`email` 等列（脚本通过幂等 ALTER 补齐）；若你的库是旧版本，请重新执行脚本末尾追加的用户体系段落（VIP 兑换码 / 邮箱验证码两段均为幂等操作）。
+脚本会创建库 `yu_picture`，并创建 `chat_memory`、`user`、`picture`、`space`、`space_user`、`love_knowledge`、`vip_code`、`email_verify_code` 等表及索引，插入旧恋爱知识库示例数据（遗留），并写入初始管理员账号 **`admin` / `admin123456`**（BCrypt 加密，账号已存在时自动跳过）。`user` 表需包含 `vipExpireTime`、`vipCode`、`vipNumber`、`email` 等列（脚本通过幂等 ALTER 补齐）；若你的库是旧版本，请重新执行脚本末尾追加的用户体系段落（VIP 兑换码 / 邮箱验证码两段均为幂等操作）。
 
 ### 3. 配置本地密钥
 
@@ -222,7 +225,7 @@ search-api:
 ./mvnw.cmd spring-boot:run
 ```
 
-默认地址为 `http://localhost:8123/api`。启动时会在内存中完成恋爱知识文档的向量化（需要 DashScope API Key 与网络）。
+默认地址为 `http://localhost:8123/api`。若启用旧的恋爱知识 RAG，启动时会进行知识文档向量化（需要 DashScope API Key 与网络）；通用助手模式下该链路默认未启用。
 
 ### 6. 启动前端
 
@@ -272,10 +275,10 @@ npm run dev
 | 方法 | 路径 | 鉴权 | 说明 |
 | --- | --- | --- | --- |
 | GET | `/helth` | 公开 | 健康检查，返回 `OK!` |
-| GET | `/ai/love_app/chat/sync?message=&chatId=` | 公开 | 恋爱大师同步对话，返回纯文本 |
-| GET | `/ai/love_app/chat/sse?message=&chatId=` | 公开 | 恋爱大师流式对话（`Flux<String>`） |
-| GET | `/ai/love_app/chat/sent_event?message=&chatId=` | 公开 | 恋爱大师 SSE 事件流（`Flux<ServerSentEvent<String>>`） |
-| GET | `/ai/love_app/chat/sse/emitter?message=&chatId=` | 公开 | 恋爱大师 SSE 对话（`SseEmitter`，超时 180 秒，前端实际使用） |
+| GET | `/ai/love_app/chat/sync?message=&chatId=` | 公开 | AI 智能助手同步对话，返回纯文本 |
+| GET | `/ai/love_app/chat/sse?message=&chatId=` | 公开 | AI 智能助手流式对话（`Flux<String>`） |
+| GET | `/ai/love_app/chat/sent_event?message=&chatId=` | 公开 | AI 智能助手 SSE 事件流（`Flux<ServerSentEvent<String>>`） |
+| GET | `/ai/love_app/chat/sse/emitter?message=&chatId=` | 公开 | AI 智能助手 SSE 对话（`SseEmitter`，超时 180 秒，前端实际使用） |
 | GET | `/ai/manus/chat?message=` | 登录 | 超级智能体流式对话（`SseEmitter`，超时 600 秒；每次请求创建新的 `CzManus` 实例） |
 | POST | `/ai/manus/human-answer` | 登录 | 提交人类回答，请求体 `{"requestId":"...","answer":"..."}`；找到请求返回 200，未找到返回 404 |
 
@@ -311,7 +314,7 @@ npm run dev
 
 说明：
 
-- 恋爱大师通过 `chatId` 维持独立会话（前端每次进入应用生成 UUID），`MessageChatMemoryAdvisor` 每轮注入最近 10 条记忆。
+- AI 智能助手通过 `chatId` 维持独立会话（前端每次进入应用生成 UUID），`MessageChatMemoryAdvisor` 每轮注入最近 10 条记忆。
 - `LoveApp` 内部的 RAG / 组合检索 / 工具 / MCP 对话方法（`doChatWithRag`、`doChatWithFallbackSearch`、`doChatWithTools`、`doChatWithMcp`、`doChatWithReport`）目前**未暴露为 HTTP 接口**，仅供测试与内部调用。
 - 登录态通过请求头 `satoken: <token>` 传递；未登录返回 `40100`，无权限返回 `40101`，统一由 `GlobalExceptionHandler` 包装为 `BaseResponse` JSON。
 
@@ -353,7 +356,7 @@ npm run dev
 | 表 | 用途 | 说明 |
 | --- | --- | --- |
 | `chat_memory` | 会话消息持久化 | `conversation_id` + `message_type`（USER/ASSISTANT/SYSTEM）+ `content`，供 `MysqlChatMemory` 使用 |
-| `love_knowledge` | 恋爱知识库 | `content` + `status`（单身/恋爱/已婚）+ `tags`，RAG 降级检索与示例数据来源 |
+| `love_knowledge` | 旧恋爱知识库（遗留） | `content` + `status`（单身/恋爱/已婚）+ `tags`，旧 RAG 降级检索与示例数据来源，通用助手模式下未使用 |
 | `user` | 用户（核心） | 含账号、BCrypt 密码、昵称/头像/简介、**邮箱**（唯一）、角色（user/vip/admin）、VIP 扩展字段；`isDelete` 软删除 |
 | `vip_code` | VIP 兑换码 | `code` 唯一、`duration_days` 时长、`is_used` 使用状态、`used_by` 使用人、`created_by` 生成管理员 |
 | `email_verify_code` | 邮箱验证码 | `email` + `purpose`（register/login/bind/reset）+ 6 位验证码 + `expire_time` + `is_used`；一次性使用 |
@@ -361,18 +364,22 @@ npm run dev
 
 ## 前端说明
 
-- **页面结构**：单页应用通过视图状态切换（无 vue-router）：首页 → 登录（双模式）/ 注册 / 找回密码 → 聊天 → 个人中心。当前页面同步到 URL hash（如 `#/chat/love`、`#/chat/manus`），**刷新页面后停留在原页面**，并支持浏览器前进/后退；恋爱大师会话会记住 `chatId`（延续后端会话记忆），草稿与历史消息由 `localStorage` 持久化，刷新后原地恢复。
+- **页面结构**：单页应用通过视图状态切换（无 vue-router）：首页 → 登录（双模式）/ 注册 / 找回密码 → 聊天 → 个人中心。当前页面同步到 URL hash（如 `#/chat/love`、`#/chat/manus`），**刷新页面后停留在原页面**，并支持浏览器前进/后退；AI 智能助手会话会记住 `chatId`（延续后端会话记忆），草稿与历史消息由 `localStorage` 持久化，刷新后原地恢复。
 - **首页**：高端落地页结构——大字 Hero（渐变描边标题）+「开始对话 / 创建账号」双 CTA + 双 AI 应用展示卡 + 能力特性条（实时流式 / 多会话管理 / 双 AI 伙伴 / 账号体系），整体直接铺在动态视频背景上（原极光/星尘/网格装饰层已隐藏以完全透出背景）。
-- **多会话管理**：聊天页左侧会话列表支持新建、切换、删除（自定义确认弹框，**至少保留一个会话**）；会话、草稿与消息均持久化到 `localStorage`，刷新/关闭浏览器后保留；移动端会话列表为抽屉式。
+- **多会话管理**：聊天页左侧会话列表支持新建、切换、**重命名**（点击 ✎ 内联编辑，Enter/失焦保存、Esc 取消）与删除（自定义确认弹框，**至少保留一个会话**）；新建对话默认名为"新对话"，可随时改名；会话、草稿与消息均持久化到 `localStorage`，刷新/关闭浏览器后保留；移动端会话列表为抽屉式。
+- **聊天框固定高度**：聊天框固定为视口高度（`100vh`/`100dvh`），消息区内部滚动——内容再多也不会撑长页面，新消息到达时历史对话自动上移并滚到底部；消息区与输入框的滚动条均已隐藏（仅保留滚动能力），通过**鼠标滚轮/触控板**翻看历史，或使用左侧**对话活动轨道**点击跳转任意气泡。
+- **背景切换**：右下角悬浮控件支持在「彗星日落（视频）/ 星空流星 / 星星眼」三套背景间切换（‹ › 或点击名称），并可通过 ▶/❚❚ 按钮开启/关闭**自动轮播**（10 秒切换一次）；选择与轮播开关持久化到 `localStorage`，刷新后保持。星空流星与星星眼为静态壁纸，前端以缓慢缩放平移（Ken Burns）动效呈现流动感。
 - **登录页**：「账号密码」与「邮箱验证码」两个选项卡；邮箱模式支持发送验证码（60 秒倒计时）；「立即注册」「忘记密码」入口两种模式均可直达。
 - **注册页**：账号 + 密码 + 邮箱 + 验证码，验证码发送成功后才能提交，注册成功后自动登录。
 - **找回密码**：输入绑定邮箱 → 发送验证码（成功发送后才可进入下一步）→ 设置新密码 → 重新登录。
 - **登录态**：token 存 `localStorage`（键 `cz_ai_token`），用户信息另缓存于 `cz_ai_user`；刷新页面时先用本地缓存恢复用户（不闪烁、不掉登录），再向后端 `/user/current` 校验令牌，仅明确收到 `40100/40101` 或 HTTP 401/403 才清空登录态（网络/服务瞬时异常不会误登出）；`http.js` 请求拦截自动附加 `satoken` 头，响应拦截统一解包 `BaseResponse`；SSE 请求（`chat.js`）同样携带令牌。
-- **游客与登录**：游客可进入「AI 恋爱大师」聊天；「AI 超级智能体」在未登录时点击会跳转登录页（卡片上显示"登录后可用"）。
+- **游客与登录**：游客可进入「AI 智能助手」聊天；「AI 超级智能体」在未登录时点击会跳转登录页（卡片上显示"登录后可用"）。
 - **智能体提问超时**：`askHuman` 提问弹窗带 180 秒倒计时（与后端 `HumanInteractionService` 超时一致）；超时未回复时自动关闭弹窗，并在对话气泡中展示"待确认问题 + 由于该问题人类并没有给出相关回复，我将基于自己的理解进行思考……"。
-- **深度思考提示**：超级智能体在工具执行/思考间隙、恋爱大师在等待首个响应分片时，对话气泡内显示"正在深度思考中……"（带动态圆点），提升等待体验。
+- **深度思考提示**：超级智能体在工具执行/思考间隙、AI 智能助手在等待首个响应分片时，对话气泡内显示"正在深度思考中……"（带动态圆点），提升等待体验。
+- **对话活动轨道（Conversation Activity Rail）**：聊天区左侧的竖向轮次标记条，**一个气泡 = 一个标记**（用户问题、超级智能体的每一个 step 气泡都各占一根短线）；短线采用**居中分布**——气泡少时整组垂直居中，历史增多后最早的气泡线逐渐上移、新的向下排，直至铺满整轨；鼠标在轨道上快速上下移动时，高亮以**弹簧物理跟随（Spring-physics follow）**滞后、过冲回弹，并带**连锁波浪缩放**（高斯波浪轮廓随弹簧移动），悬停同时弹出 Tooltip 预览气泡内容；点击短线以弹性波浪缓动平滑滚动跳转到该气泡并短暂高亮，随滚动自动更新当前气泡；移动端自动隐藏。
+- **生成中断与修改重发**：AI 生成过程中输入框发送键变为「■ 停止」按钮，点击即中断生成（清掉本次未完成的回复，回到用户提问处）；随后可**直接在输入框输入新问题**，或**点击用户气泡下的 ✎ 修改之前发出去的提问**，确认后自动按新提示词重新生成回复（智能助手与超级智能体均支持）。
 - **个人中心**：资料编辑（昵称/简介）、修改密码（改后需重新登录）、邮箱绑定（发送验证码 + 60 秒倒计时）、VIP 兑换、管理员面板（用户分页/搜索、改角色、删除、新建用户、批量生成兑换码）；头像通过 `+` 按钮选择本地图片上传，即时预览，主页/聊天页右上角同步显示头像。
-- **视觉风格**：全站以**动态视频背景**为主角（`public/background/comet.mp4`，4K 彗星日落霞光壁纸压缩版，5 秒循环 + 首帧占位图，全局固定一层，所有页面共用）；主页保持**完全透明无模糊**（卡片仅剩边框和文字），登录/注册/找回密码、聊天页、个人中心均为**毛玻璃通透**（轻微 6~12px 模糊 + 极淡底色），既凸显背景又保证文字可读性；深空星点、极光、行星等装饰层已弱化以透出背景。
+- **视觉风格**：全站以**三套可切换动态背景**为主角（彗星日落为视频、星空流星与星星眼为 Ken Burns 动效图片，全局固定一层、所有页面共用，右下角按钮切换）；主页保持**完全透明无模糊**（卡片仅剩边框和文字），登录/注册/找回密码、聊天页、个人中心均为**毛玻璃通透**（轻微 6~12px 模糊 + 极淡底色），既凸显背景又保证文字可读性；深空星点、极光、行星等装饰层已弱化以透出背景。
 
 ## 测试
 
@@ -387,4 +394,3 @@ npm run dev
 测试覆盖：应用上下文与 LoveApp 对话（`CzAiAgentApplicationTests`）、CzManus 端到端任务（`CzManusTest`）、RAG 组件（`LoveAppTest`、`PgVectorVectorStoreConfigTest`）、各工具（文件、搜索、抓取、下载、终端、PDF、邮件、日期、数据库、WebSearch）。
 
 注意：多数测试是 `@SpringBootTest` 集成测试，**依赖 MySQL、DashScope、邮件 SMTP 或外部 API**；未配置凭据或网络受限时可能失败，建议按类单独执行。
-
