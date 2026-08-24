@@ -127,5 +127,38 @@ public class AiController {
                 : ResponseEntity.notFound().build();
     }
 
+    /**
+     * RAG 检索增强对话（SSE 流式）——供前端新增 AI 聊天框调用
+     *
+     * @param message 用户输入
+     * @param chatId  会话ID
+     * @param status  知识库文档状态过滤条件，默认"单身"（可选：单身/恋爱/已婚）
+     * @return SSE 流
+     */
+    @GetMapping("/rag/chat/sse")
+    public SseEmitter doChatWithRagSse(String message, String chatId,
+                                       @RequestParam(defaultValue = "单身") String status) {
+        // 创建一个超时时间较长的 SseEmitter
+        SseEmitter emitter = new SseEmitter(180000L); // 3分钟超时
+        // 获取 RAG 增强的 Flux 数据流并直接订阅
+        loveApp.doChatWithRagByStream(message, chatId, status)
+                .subscribe(
+                        // 处理每条消息
+                        chunk -> {
+                            try {
+                                emitter.send(chunk);
+                            } catch (IOException e) {
+                                emitter.completeWithError(e);
+                            }
+                        },
+                        // 处理错误
+                        emitter::completeWithError,
+                        // 处理完成
+                        emitter::complete
+                );
+        // 返回emitter
+        return emitter;
+    }
+
 }
 

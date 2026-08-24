@@ -357,10 +357,11 @@ h1 em {
 }
 .btn-primary {
   border: 1px solid rgba(178, 168, 255, 0.55);
-  background: linear-gradient(135deg, rgba(142, 162, 255, 0.04), rgba(109, 124, 255, 0.03) 48%, rgba(165, 95, 224, 0.04));
+  background: linear-gradient(135deg, rgba(142, 162, 255, 0.1), rgba(109, 124, 255, 0.08) 48%, rgba(165, 95, 224, 0.1));
   color: #fff;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.18), 0 10px 30px rgba(109, 124, 255, 0.12);
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
 }
 .btn-primary b {
   font-weight: 400;
@@ -373,9 +374,10 @@ h1 em {
 .btn-primary:hover b { transform: translateX(4px); }
 .btn-ghost {
   border: 1px solid var(--line);
-  background: transparent;
+  background: rgba(24, 34, 66, 0.08);
   color: #cdd8f5;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
 }
 .btn-ghost:hover {
   border-color: rgba(190, 205, 255, 0.55);
@@ -408,7 +410,7 @@ h1 em {
 /* ================= 应用卡片 ================= */
 .app-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
 .app-card {
@@ -418,14 +420,15 @@ h1 em {
   overflow: hidden;
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 30px;
+  gap: 16px;
+  padding: 26px;
   color: #f5f7ff;
   text-align: left;
   border: 1px solid rgba(168, 186, 235, 0.1);
   border-radius: 22px;
-  background: transparent;
+  background: linear-gradient(125deg, rgba(27, 40, 86, 0.06), rgba(16, 25, 54, 0.09));
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.04), 0 22px 55px rgba(2, 5, 17, 0.1);
+  backdrop-filter: blur(10px);
   transition: 0.3s ease;
 }
 .app-card::before {
@@ -505,20 +508,26 @@ h1 em {
   height: 54px;
   border: 1px solid rgba(218, 229, 255, 0.3);
   border-radius: 17px;
-  background: transparent;
+  background: rgba(203, 216, 255, 0.05);
   color: #dfe7ff;
   font: 30px 'Playfair Display', serif;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.14), 0 0 26px rgba(126, 156, 255, 0.16);
+  backdrop-filter: blur(6px);
 }
 .rose .card-icon {
   color: #ffc4df;
-  background: transparent;
+  background: rgba(245, 167, 211, 0.06);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), 0 0 26px rgba(245, 167, 211, 0.1);
 }
 .violet .card-icon {
   color: #ced0ff;
-  background: transparent;
+  background: rgba(159, 145, 255, 0.06);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), 0 0 26px rgba(159, 145, 255, 0.12);
+}
+.sky .card-icon {
+  color: #bde6ff;
+  background: rgba(125, 203, 255, 0.06);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), 0 0 26px rgba(125, 203, 255, 0.14);
 }
 .card-content {
   display: grid;
@@ -533,7 +542,7 @@ h1 em {
   font-size: 20px;
 }
 .card-content small {
-  max-width: 300px;
+  max-width: 230px;
   color: #aeb7d3;
   line-height: 1.65;
   font-size: 13px;
@@ -562,12 +571,13 @@ h1 em {
   padding: 17px 18px;
   border: 1px solid var(--line-soft);
   border-radius: 16px;
-  background: transparent;
+  background: rgba(15, 23, 48, 0.06);
+  backdrop-filter: blur(8px);
   transition: 0.25s ease;
 }
 .feature:hover {
   border-color: rgba(190, 205, 255, 0.32);
-  background: transparent;
+  background: rgba(21, 31, 64, 0.1);
   transform: translateY(-3px);
 }
 .feature b {
@@ -598,7 +608,7 @@ h1 em {
 }
 
 /* ================= 聊天页 ================= */
-.app-love, .app-manus {
+.app-love, .app-manus, .app-rag {
   background: transparent;
 }
 .app-profile {
@@ -770,6 +780,12 @@ h1 em {
   box-shadow: 0 0 20px rgba(153, 152, 250, 0.2);
   backdrop-filter: blur(6px);
 }
+.small-icon.sky {
+  color: #bde6ff;
+  background: rgba(125, 203, 255, 0.06);
+  box-shadow: 0 0 20px rgba(125, 203, 255, 0.18);
+  backdrop-filter: blur(6px);
+}
 .secure {
   margin-left: auto;
   color: #91a1ca;
@@ -838,6 +854,10 @@ h1 em {
   color: #d1d2ff;
   background: rgba(153, 152, 250, 0.05);
 }
+.intro-icon.sky {
+  color: #bde6ff;
+  background: rgba(125, 203, 255, 0.05);
+}
 .intro p {
   margin: 0;
   line-height: 1.8;
@@ -849,6 +869,37 @@ h1 em {
   margin-top: 13px;
   color: #65769f;
   font: 10px 'DM Mono', monospace;
+}
+.rag-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 5px 12px;
+  border: 1px solid rgba(161, 178, 223, 0.16);
+  border-radius: 999px;
+  color: #9fb0d8;
+  font-size: 12px;
+  background: rgba(13, 20, 42, 0.12);
+  backdrop-filter: blur(10px);
+}
+.rag-status select {
+  appearance: none;
+  padding: 3px 22px 3px 10px;
+  border: 1px solid rgba(161, 178, 223, 0.22);
+  border-radius: 999px;
+  outline: none;
+  color: #eaf1ff;
+  font-size: 12px;
+  background:
+    linear-gradient(45deg, transparent 50%, #a9c2ff 50%) calc(100% - 13px) 50% / 5px 5px no-repeat,
+    linear-gradient(135deg, #a9c2ff 50%, transparent 50%) calc(100% - 9px) 50% / 5px 5px no-repeat,
+    rgba(125, 203, 255, 0.08);
+  cursor: pointer;
+}
+.rag-status select option {
+  color: #eaf1ff;
+  background: #101a38;
 }
 .message {
   display: flex;
@@ -1385,6 +1436,9 @@ h1 em {
 @media (max-width: 780px) {
   .home {
     width: min(100% - 40px, 1160px);
+  }
+  .app-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .turn-rail {
     display: none;

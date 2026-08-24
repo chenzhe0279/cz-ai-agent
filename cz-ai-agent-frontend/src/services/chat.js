@@ -4,12 +4,17 @@ const endpoints = {
   // Spring SseEmitter 接口，AI 智能助手通过 chatId 维持独立会话。
   love: '/ai/love_app/chat/sse/emitter',
   manus: '/ai/manus/chat',
+  // RAG 检索增强对话：与智能助手一样通过 chatId 维持会话，status 过滤知识库文档状态
+  rag: '/ai/rag/chat/sse',
 }
 
 /** 以 SSE / chunked 文本方式读取后端实时回答。 */
-export async function streamChat(type, message, chatId, onEvent, signal) {
+export async function streamChat(type, message, chatId, onEvent, signal, extraParams = {}) {
   const params = new URLSearchParams({ message })
-  if (type === 'love') params.set('chatId', chatId)
+  if (type === 'love' || type === 'rag') params.set('chatId', chatId)
+  for (const [key, value] of Object.entries(extraParams)) {
+    if (value !== undefined && value !== null && value !== '') params.set(key, value)
+  }
 
   const headers = { Accept: 'text/event-stream' }
   const token = getToken()

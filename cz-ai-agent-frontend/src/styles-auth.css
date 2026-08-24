@@ -199,10 +199,11 @@
   border: 1px solid #a4b8e83a;
   border-radius: 10px;
   padding: 7px 14px;
-  background: transparent;
+  background: rgba(17, 26, 49, 0.08);
   color: #cdd8f5;
   font-size: 13px;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
   transition: 0.2s;
 }
 .nav-link:hover {
@@ -210,10 +211,11 @@
   color: #fff;
 }
 .nav-link.primary {
-  background: linear-gradient(135deg, rgba(142, 162, 255, 0.03), rgba(109, 124, 255, 0.02) 48%, rgba(165, 95, 224, 0.03));
+  background: linear-gradient(135deg, rgba(142, 162, 255, 0.1), rgba(109, 124, 255, 0.08) 48%, rgba(165, 95, 224, 0.1));
   border-color: transparent;
   color: #fff;
   box-shadow: 0 5px 18px rgba(109, 124, 255, 0.1);
+  backdrop-filter: blur(8px);
 }
 .nav-chip {
   display: inline-flex;
@@ -222,10 +224,11 @@
   border: 1px solid #a4b8e83a;
   border-radius: 12px;
   padding: 6px 12px 6px 6px;
-  background: transparent;
+  background: rgba(17, 26, 49, 0.08);
   color: #e3e9fb;
   font-size: 13px;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
 }
 .nav-chip:hover {
   border-color: #b9ccff99;
