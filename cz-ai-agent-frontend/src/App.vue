@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { streamChat } from './services/chat'
 import { http } from './services/http'
 import { API_BASE_URL } from './services/http'
@@ -134,10 +134,15 @@ const turns = computed(() => {
 const hoverTurnIndex = ref(-1)
 const activeTurnIndex = ref(-1)
 const highlightTurnIndex = ref(-1)
-const markerScales = ref([])
+const markerScales = reactive([]) // 波浪缩放：仅局部更新（高斯半径内），避免每帧重写全部标记样式
 let highlightTimer = null
 let activeScrollRaf = null
 let scrollAnimRaf = null
+let scrollAnimating = false // 滚动动画进行中：跳过 active 轮次的全量定位，动画结束后统一补一次
+let waveFrom = -1 // 上一帧波浪更新范围，先还原再重算，只触碰半径内的标记
+let waveTo = -1
+const WAVE_RADIUS = 6 // 高斯波浪只作用于该半径内的标记，其余保持 1
+let cachedMessageEls = [] // 消息 DOM 元素缓存（与 turns 索引一一对应），避免滚动/动画期间反复 querySelector
 
 // 弹簧物理跟随（Spring-physics follow）：高亮位置以弹簧模拟跟随鼠标，
 // 快速上下移动时产生滞后、过冲回弹的连锁波浪效果
@@ -175,7 +180,11 @@ function onRailMouseLeave() {
   }
   railVelocity = 0
   hoverTurnIndex.value = -1
-  markerScales.value = new Array(turns.value.length).fill(1)
+  const n = turns.value.length
+  markerScales.length = n
+  for (let i = 0; i < n; i++) markerScales[i] = 1
+  waveFrom = -1
+  waveTo = -1
 }
 
 // 返回与鼠标位置最近（线性插值）的标记索引，0..n-1 的浮点数
@@ -208,13 +217,20 @@ function tickRailSpring() {
   }
   const hovered = Math.round(railFollow)
   hoverTurnIndex.value = hovered >= 0 && hovered < n ? hovered : -1
-  // 以跟随位置为中心的高斯波浪轮廓：离得近的标记放大，形成随弹簧移动的波浪
-  const wave = new Array(n).fill(1)
-  for (let i = 0; i < n; i++) {
-    const d = Math.abs(i - railFollow)
-    wave[i] = 1 + 0.55 * Math.exp(-(d * d) / 2.2)
+  // 以跟随位置为中心的高斯波浪轮廓：只更新半径内的标记，其余还原为 1，
+  // 避免每帧重写全部标记样式（历史很长时显著降低渲染开销）
+  if (waveFrom >= 0 && waveFrom < n) {
+    for (let i = waveFrom; i <= waveTo && i < n; i++) {
+      if (markerScales[i] !== 1) markerScales[i] = 1
+    }
   }
-  markerScales.value = wave
+  const center = Math.max(0, Math.min(n - 1, hovered))
+  waveFrom = Math.max(0, center - WAVE_RADIUS)
+  waveTo = Math.min(n - 1, center + WAVE_RADIUS)
+  for (let i = waveFrom; i <= waveTo; i++) {
+    const d = Math.abs(i - railFollow)
+    markerScales[i] = 1 + 0.55 * Math.exp(-(d * d) / 2.2)
+  }
   if (railHovering && (Math.abs(railTarget - railFollow) > 0.005 || Math.abs(railVelocity) > 0.02)) {
     railSpringRaf = requestAnimationFrame(tickRailSpring)
   }
@@ -223,7 +239,7 @@ function tickRailSpring() {
 // 标记样式：位置 + 弹簧波浪缩放 + 顶部渐隐（早期标记接近上边界时逐渐透明）
 function markerStyle(idx) {
   const top = turnPositions.value[idx] ?? 0
-  const scale = markerScales.value[idx] ?? 1
+  const scale = markerScales[idx] ?? 1
   const fade = Math.min(1, Math.max(0, (top - railPaddingTop.value) / RAIL_FADE_ZONE))
   return { top: `${top}px`, transform: `scaleX(${scale})`, opacity: fade }
 }
@@ -248,23 +264,54 @@ function isMessageInHighlightedTurn(index) {
   return index >= turn.start && index <= turn.end
 }
 
-function animateChatScroll(targetTop, duration = 650) {
+function animateChatScroll(targetTop, duration = 750) {
   const body = chatBody.value
   if (!body) return
   if (scrollAnimRaf) cancelAnimationFrame(scrollAnimRaf)
+  scrollAnimating = true
+  // 滚动动画期间暂停弹簧波浪循环：App.vue 为单组件，波浪每帧更新会触发
+  // 整个聊天区重渲染，与滚动动画抢帧导致卡顿；动画结束后若鼠标仍在轨道上再恢复
+  if (railSpringRaf) {
+    cancelAnimationFrame(railSpringRaf)
+    railSpringRaf = null
+  }
+  // 临时禁用 CSS 原生平滑（.chat-body 定义了 scroll-behavior: smooth）：
+  // 否则浏览器会对每帧 scrollTop 赋值重新插值，把我们的缓动稀释成"慢启动"，
+  // 动画结束后移除内联样式，恢复 CSS 原定义
+  body.style.setProperty('scroll-behavior', 'auto')
   const start = body.scrollTop
   const delta = targetTop - start
-  const t0 = performance.now()
-  // 弹性波浪缓动：先冲过目标再回弹
-  function easeOutElastic(x) {
-    const c4 = (2 * Math.PI) / 3
-    if (x === 0 || x === 1) return x
-    return Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * c4) + 1
+  // 每帧最大位移限制（约 1.3 屏）：保持快速起步又不阻塞主线程（此前单帧跳 3~4 屏会卡）
+  const maxStep = Math.max(700, Math.round(body.clientHeight * 1.3))
+  const frames = Math.max(1, Math.ceil(Math.abs(delta) / maxStep))
+  const animDuration = Math.max(duration, frames * 26)
+  // 时间基准提前一帧：RAF 回调的时间戳常与调度时刻几乎相同，导致首帧 p≈0 几乎不动，
+  // 表现为"点击后慢启动"；偏移一帧后首帧即有明显位移
+  const t0 = performance.now() - 16
+  // 快速起步 + 轻微弹性过冲回弹（easeOutBack）：点击后马上冲过去，末端干脆停住
+  function easeOutBack(x) {
+    const c1 = 1.70158
+    const c3 = c1 + 1
+    return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2)
   }
   function step(now) {
-    const p = Math.min(1, (now - t0) / duration)
-    body.scrollTop = start + delta * easeOutElastic(p)
-    if (p < 1) scrollAnimRaf = requestAnimationFrame(step)
+    const p = Math.min(1, (now - t0) / animDuration)
+    const target = start + delta * easeOutBack(p)
+    const prev = body.scrollTop
+    const gap = target - prev
+    body.scrollTop = Math.abs(gap) > maxStep ? prev + Math.sign(gap) * maxStep : target
+    if (p < 1) {
+      scrollAnimRaf = requestAnimationFrame(step)
+    } else {
+      body.scrollTop = targetTop // 收尾：精确落位（此时离目标已在一屏内）
+      body.style.removeProperty('scroll-behavior') // 恢复 CSS 原生平滑定义
+      scrollAnimRaf = null
+      scrollAnimating = false
+      updateActiveTurn() // 动画结束：一次性更新当前轮次
+      if (railHovering && !railSpringRaf) {
+        railSpringRaf = requestAnimationFrame(tickRailSpring) // 鼠标仍在轨道上：恢复弹簧跟随
+      }
+    }
   }
   scrollAnimRaf = requestAnimationFrame(step)
 }
@@ -273,7 +320,7 @@ function jumpToTurn(index) {
   const turn = turns.value[index]
   const body = chatBody.value
   if (!turn || !body) return
-  const el = body.querySelector(`[data-index="${turn.start}"]`)
+  const el = getMessageEls()[turn.start] || body.querySelector(`[data-index="${turn.start}"]`)
   if (!el) return
   const bodyRect = body.getBoundingClientRect()
   let targetTop = el.getBoundingClientRect().top - bodyRect.top + body.scrollTop
@@ -301,22 +348,39 @@ function onRailClick(e) {
   jumpToTurn(Math.max(0, Math.min(n - 1, idx)))
 }
 
+// 消息 DOM 缓存：v-for 渲染的消息与 turns 索引一一对应，滚动/跳转时复用元素引用，
+// 避免每次滚动帧对全部消息做 querySelector（消息增删或切换会话时失效重建）
+function getMessageEls() {
+  if (!cachedMessageEls.length && chatBody.value) {
+    cachedMessageEls = Array.from(chatBody.value.querySelectorAll('.message'))
+  }
+  return cachedMessageEls
+}
+
+function invalidateMessageEls() {
+  cachedMessageEls = []
+}
+
 function updateActiveTurn() {
   const list = turns.value
-  if (!list.length || !chatBody.value) return
+  const els = getMessageEls()
+  const body = chatBody.value
+  if (!list.length || !els.length || !body) return
   let active = list.length - 1
+  const scrollTop = body.scrollTop
+  const bodyRect = body.getBoundingClientRect()
   for (let i = 0; i < list.length; i++) {
-    const el = chatBody.value.querySelector(`[data-index="${list[i].start}"]`)
+    const el = els[list[i].start]
     if (!el) continue
-    const bodyRect = chatBody.value.getBoundingClientRect()
-    const top = el.getBoundingClientRect().top - bodyRect.top + chatBody.value.scrollTop
-    if (top <= chatBody.value.scrollTop + 140) active = i
+    const top = el.getBoundingClientRect().top - bodyRect.top + scrollTop
+    if (top <= scrollTop + 140) active = i
     else break
   }
-  activeTurnIndex.value = active
+  if (active !== activeTurnIndex.value) activeTurnIndex.value = active
 }
 
 function onChatBodyScroll() {
+  if (scrollAnimating) return // 滚动动画进行中：不逐帧全量定位，动画结束后统一更新一次
   if (activeScrollRaf) return
   activeScrollRaf = requestAnimationFrame(() => {
     activeScrollRaf = null
@@ -678,6 +742,12 @@ watch(
       setupRail()
     }
   },
+)
+
+// 消息增删（发送/停止生成/切换会话）后 DOM 缓存失效，滚动定位时重建
+watch(
+  [() => messages.value.length, currentConversationId],
+  () => invalidateMessageEls(),
 )
 
 // 视图变化时同步 URL hash（支持刷新停留与浏览器前进/后退）
