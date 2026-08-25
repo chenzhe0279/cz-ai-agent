@@ -49,7 +49,7 @@ public class LoveAppDocumentLoader {
         List<Document> allDocuments = new ArrayList<>();
         try {
             // 扫描 classpath 下 document 目录中所有 .md 文件
-            Resource[] resources = resourcePatternResolver.getResources("classpath:document/*.md");
+            Resource[] resources = resourcePatternResolver.getResources("classpath*:document/*.md");
             for (Resource resource : resources) {
                 //获取markdown文件名
                 String fileName = resource.getFilename();

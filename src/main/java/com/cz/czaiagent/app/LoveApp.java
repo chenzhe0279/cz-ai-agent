@@ -201,6 +201,27 @@ public class LoveApp {
         // 如果这里用普通 List，一旦顾问写入和读取不在同一线程，可能出现可见性问题或读到中间状态。
         // AtomicReference 保证引用替换的原子性和跨线程可见性，初始用不可变的空列表兜底。
         AtomicReference<List<Document>> retrievedDocs = new AtomicReference<>(List.of());
+
+        // 手动预检索：命中则走 RAG 流式并附参考资料；未命中直接返回固定说辞（不调大模型，
+        // 避免把兜底文案当 prompt 丢给模型让它生成而拒不配合）
+        Filter.Expression statusExpr = new FilterExpressionBuilder().eq("status", status).build();
+        DocumentRetriever preRetriever = VectorStoreDocumentRetriever.builder()
+                .vectorStore(loveAppVectorStore)
+                .filterExpression(statusExpr)
+                .similarityThreshold(0.5)
+                .topK(3)
+                .build();
+        List<Document> matchedDocs = preRetriever.retrieve(new Query(rewriteMessage));
+        if (matchedDocs == null || matchedDocs.isEmpty()) {
+            // 知识库未命中：直接输出固定说辞（不走模型，确保原样返回）
+            String fallback = "抱歉，我只能回答情感相关的问题，别的没办法帮到您哦，\n"
+                    + "有问题可以联系网站主理人：-若世有神明-\n"
+                    + "联系电话：19177777777";
+            log.info("RAG 未命中，返回固定说辞。message={}, status={}", message, status);
+            return Flux.just(fallback);
+        }
+        retrievedDocs.set(matchedDocs);
+
         return chatClient
                 .prompt()
                 .user(rewriteMessage)

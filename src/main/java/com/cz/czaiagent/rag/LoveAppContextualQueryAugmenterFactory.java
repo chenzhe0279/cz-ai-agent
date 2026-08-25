@@ -19,7 +19,7 @@ public class LoveAppContextualQueryAugmenterFactory {
         // 定义知识库未命中时的兜底回复模板，引导用户仅提问恋爱相关内容
         PromptTemplate emptyContextPromptTemplate = new PromptTemplate("""
                 你应该输出下面的内容：
-                抱歉，我只能回答恋爱相关的问题，别的没办法帮到您哦，
+                抱歉，我只能回答情感相关的问题，别的没办法帮到您哦，
                 有问题可以联系网站主理人：-若世有神明-
                 联系电话：19177777777
                 """);
