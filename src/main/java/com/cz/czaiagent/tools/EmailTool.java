@@ -22,7 +22,7 @@ public class EmailTool {
     private final JavaMailSender mailSender;
 
     /**
-     * 发件人邮箱地址，即"从哪封邮箱发出"，配置在 application-local.yaml 中
+     * 发件人邮箱地址，即"从哪封邮箱发出"，配置在 application-local.yml 中
      */
     private final String fromEmail;
 

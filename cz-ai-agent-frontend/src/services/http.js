@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-export const API_BASE_URL = 'http://localhost:8123/api'
+// 后端地址：本地默认 localhost，云端部署时通过环境变量 VITE_API_BASE_URL 注入（见 .env.example / Dockerfile）
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8123/api'
 export const TOKEN_KEY = 'cz_ai_token'
 
 export function getToken() {

@@ -26,7 +26,7 @@ public class DatabaseTool {
     /**
      * 构造函数：注入 JdbcTemplate
      * <p>
-     * JdbcTemplate 由 Spring 容器根据 application.yaml 中的数据源配置自动创建，
+     * JdbcTemplate 由 Spring 容器根据 application.yml 中的数据源配置自动创建，
      * 我们只需把它传进来即可。
      *
      * @param jdbcTemplate Spring JDBC 模板对象

@@ -26,13 +26,13 @@ import org.springframework.mail.javamail.JavaMailSender;
 public class ToolRegistration {
 
     /**
-     * 搜索引擎 API 密钥，从 application-local.yaml 中读取
+     * 搜索引擎 API 密钥，从 application-local.yml 中读取
      */
     @Value("${search-api.api-key}")
     private String searchApiKey;
 
     /**
-     * 邮件发件人地址，从 application-local.yaml 的 spring.mail.username 中读取
+     * 邮件发件人地址，从 application-local.yml 的 spring.mail.username 中读取
      */
     @Value("${spring.mail.username}")
     private String mailUsername;
