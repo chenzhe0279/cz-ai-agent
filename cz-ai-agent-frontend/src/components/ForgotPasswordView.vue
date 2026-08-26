@@ -152,7 +152,7 @@ onUnmounted(() => clearInterval(timer))
       </div>
 
       <footer class="site-footer">
-        <span>© {{ new Date().getFullYear() }} CZ AI WORKSPACE</span>
+        <span>© {{ new Date().getFullYear() }} 春日部当红小P的AI空间</span>
         <span>账号 · 安全 · 权限</span>
       </footer>
     </section>

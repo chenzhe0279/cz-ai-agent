@@ -8,12 +8,16 @@ const endpoints = {
   rag: '/ai/rag/chat/sse',
 }
 
-/** 以 SSE / chunked 文本方式读取后端实时回答。 */
-export async function streamChat(type, message, chatId, onEvent, signal, extraParams = {}) {
+/** 以 SSE / chunked 文本方式读取后端实时回答。
+ * @param history 本次发送之前的对话历史（[{role:'user'|'assistant', content}]），供后端重建上下文 */
+export async function streamChat(type, message, chatId, onEvent, signal, extraParams = {}, history = []) {
   const params = new URLSearchParams({ message })
   if (type === 'love' || type === 'rag') params.set('chatId', chatId)
   for (const [key, value] of Object.entries(extraParams)) {
     if (value !== undefined && value !== null && value !== '') params.set(key, value)
+  }
+  if (Array.isArray(history) && history.length) {
+    params.set('history', JSON.stringify(history))
   }
 
   const headers = { Accept: 'text/event-stream' }

@@ -33,10 +33,18 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_RETRIEVE_SIZE_KEY;
@@ -51,6 +59,11 @@ public class LoveApp {
 
     private final ChatClient chatClient;
 
+    // 会话记忆：供前端传入 history 时重建上下文（实现中断后续写等）
+    private final ChatMemory chatMemory;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     public LoveApp(ChatModel dashscopeChatModel, JdbcTemplate jdbcTemplate) {
         this.systemPromptTemplate = new PromptTemplate("prompts/love-expert.st");
         this.reportPromptTemplate = new PromptTemplate("prompts/love-report.st");
@@ -58,14 +71,14 @@ public class LoveApp {
         // 使用 MySQL 持久化对话记忆
         //ChatMemory chatMemory = new MysqlChatMemory(jdbcTemplate);
         //基于内存的持久化对话记忆
-        ChatMemory chatMemory = new InMemoryChatMemory();
+        this.chatMemory = new InMemoryChatMemory();
 
         String defaultSystemPrompt = systemPromptTemplate.render(Map.of());
 
         chatClient = ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(defaultSystemPrompt)
                 .defaultAdvisors(
-                        new MessageChatMemoryAdvisor(chatMemory),
+                        new MessageChatMemoryAdvisor(this.chatMemory),
                         new MyLoggerAdvisor()
                         //new ForbiddenWordAdvisor()
                 ).build();
@@ -98,7 +111,41 @@ public class LoveApp {
      * @param chatId  会话ID
      * @return AI回复文本
      */
-    public Flux<String> doChatByStream(String message, String chatId) {
+    /** 重建该会话记忆：用前端传入的 history（不含本次 user）替换，供 MessageChatMemoryAdvisor 取用，实现中断后续写 */
+    private void rebuildMemory(String chatId, String history) {
+        if (chatMemory == null) return;
+        List<Message> hist = parseHistory(history);
+        if (hist.isEmpty()) return; // 未传历史时不覆盖，保留后端原有记忆
+        chatMemory.clear(chatId);
+        chatMemory.add(chatId, hist);
+    }
+
+    /** 解析前端传来的 history JSON（[{"role","content"},...]）为 Spring AI 消息列表 */
+    private List<Message> parseHistory(String history) {
+        if (history == null || history.isBlank()) return List.of();
+        try {
+            List<Map<String, String>> list = objectMapper.readValue(history, new TypeReference<List<Map<String, String>>>() {});
+            List<Message> msgs = new ArrayList<>();
+            for (Map<String, String> m : list) {
+                if (m == null) continue;
+                String role = m.get("role");
+                String content = m.get("content");
+                if (content == null || content.isBlank()) continue;
+                if ("user".equals(role)) {
+                    msgs.add(new UserMessage(content));
+                } else if ("assistant".equals(role)) {
+                    msgs.add(new AssistantMessage(content));
+                }
+            }
+            return msgs;
+        } catch (Exception e) {
+            log.warn("history 解析失败，忽略", e);
+            return List.of();
+        }
+    }
+
+    public Flux<String> doChatByStream(String message, String chatId, String history) {
+        rebuildMemory(chatId, history);
         return chatClient
                 .prompt()
                 .user(message)
@@ -190,7 +237,8 @@ public class LoveApp {
      * @param status  知识库文档状态过滤条件
      * @return AI回复文本流
      */
-    public Flux<String> doChatWithRagByStream(String message, String chatId, String status) {
+    public Flux<String> doChatWithRagByStream(String message, String chatId, String status, String history) {
+        rebuildMemory(chatId, history);
         // 大模型查询重写，提升向量检索命中率
         String rewriteMessage = queryRewriter.rewrite(message);
         // 使用 AtomicReference 收集检索到的文档，以便流式响应结束后追加参考资料

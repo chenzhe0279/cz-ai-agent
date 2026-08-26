@@ -144,7 +144,7 @@ onUnmounted(() => clearInterval(timer))
         <p class="auth-switch">已有账号？<a @click.prevent="emit('switch-login')">直接登录</a></p>
       </form>
       <footer class="site-footer">
-        <span>© {{ new Date().getFullYear() }} CZ AI WORKSPACE</span>
+        <span>© {{ new Date().getFullYear() }} 春日部当红小P的AI空间</span>
         <span>账号 · 安全 · 权限</span>
       </footer>
     </section>

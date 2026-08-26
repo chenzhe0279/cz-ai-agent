@@ -444,8 +444,9 @@ function setupRail() {
 // ---------------- 背景切换（三套动态背景，localStorage 持久化） ----------------
 const BACKGROUNDS_KEY = 'cz_ai_background'
 const BACKGROUND_AUTO_KEY = 'cz_ai_background_auto'
-// 三套背景：彗星日落（视频）/ 星空流星（图片 + Ken Burns 动效）/ 彗星蓝天·你的名字（图片 + Ken Burns 动效）
+// 背景：蜡笔小新·湖边之夜（图片 + Ken Burns 动效，默认初始背景）/ 彗星日落（视频）/ 星空流星（图片）/ 彗星蓝天·你的名字（图片）
 const backgrounds = [
+  { id: 'xiaoxin-night', name: '蜡笔小新·湖边之夜', type: 'image', src: '/background/xiaoxin-night.webp' },
   { id: 'comet', name: '彗星日落', type: 'video', src: '/background/comet.mp4', poster: '/background/comet-poster.webp' },
   { id: 'stars', name: '星空流星', type: 'image', src: '/background/stars.webp' },
   { id: 'starry-eyes', name: '彗星蓝天', type: 'image', src: '/background/starry-eyes.webp' },
@@ -715,10 +716,10 @@ const welcome = computed(() => {
 
 watch(currentApp, (appId) => {
   const selectedApp = apps.find((item) => item.id === appId)
-  const title = selectedApp ? `${selectedApp.name} · CZ AI 工作台` : 'CZ AI 工作台 · 探索你的智能伙伴'
+  const title = selectedApp ? `${selectedApp.name} · 春日部当红小P的AI空间` : '春日部当红小P的AI空间 · 探索你的智能伙伴'
   const description = selectedApp
     ? `与 ${selectedApp.name} 实时对话，获得清晰、可靠的 AI 协助。`
-    : 'CZ AI 工作台：选择你的 AI 伙伴，开始一段实时、专属的智能对话。'
+    : '春日部当红小P的AI空间：选择你的 AI 伙伴，开始一段实时、专属的智能对话。'
   document.title = title
   document.querySelector('meta[name="description"]')?.setAttribute('content', description)
 })
@@ -871,12 +872,12 @@ function send() {
   runSend(content, -1)
 }
 
-// 中断当前 AI 生成：中止流式请求，并清掉本次生成产生的（未完成的）助手气泡，回到用户提问处
+// 中断当前 AI 生成：中止流式请求，但保留已生成的内容（不清空、不截断），
+// 后续消息可基于这些内容继续，实现"接续中断前回复"
 async function stopGeneration() {
   activeAbortController.value?.abort()
   const conv = currentConversation.value
   if (!conv || streamUserIndex.value < 0) return
-  conv.messages = conv.messages.slice(0, streamUserIndex.value + 1)
   streamUserIndex.value = -1
   pendingStepContent.value = ''
   activeAssistantMessageIndex.value = null
@@ -925,10 +926,14 @@ function confirmEditUserMessage() {
 async function runSend(content, replaceUserIndex) {
   const conv = currentConversation.value
   if (!conv) return
+  // history：本次发送之前的消息（不含本次 user），交给后端重建上下文，实现中断后续写、上下文接续
+  let history
   if (replaceUserIndex >= 0) {
+    history = conv.messages.slice(0, replaceUserIndex)
     conv.messages[replaceUserIndex].content = content
     conv.messages = conv.messages.slice(0, replaceUserIndex + 1)
   } else {
+    history = conv.messages.slice()
     conv.messages.push({ role: 'user', content })
   }
   conv.updatedAt = Date.now()
@@ -977,7 +982,7 @@ async function runSend(content, replaceUserIndex) {
         activeAssistantMessageIndex.value = conv.messages.length - 1
         scrollToBottom()
       }
-    }, controller.signal, extraParams)
+    }, controller.signal, extraParams, history)
     if (pendingStepContent.value) {
       conv.messages.push({ role: 'assistant', content: pendingStepContent.value })
       activeAssistantMessageIndex.value = conv.messages.length - 1
@@ -1137,7 +1142,7 @@ async function scrollToBottom() {
       </div>
       <div class="diag-grid" aria-hidden="true"></div>
       <header class="site-nav">
-        <div class="brand"><span class="brand-mark">✦</span><span>CZ AI</span><small>WORKSPACE</small></div>
+        <div class="brand"><span class="brand-mark">✦</span><span>春日部当红小P</span><small>AI空间</small></div>
         <div class="nav-user">
           <template v-if="auth.user">
             <button class="nav-chip" @click="view = 'profile'">
@@ -1183,7 +1188,7 @@ async function scrollToBottom() {
         <div class="feature"><b>三大 AI 伙伴</b><span>智能助手 · 超级智能体 · 情感专家</span></div>
         <div class="feature"><b>账号体系</b><span>邮箱验证 · 数据安全可靠</span></div>
       </div>
-      <footer class="site-footer"><span>© {{ new Date().getFullYear() }} CZ AI WORKSPACE</span><span>智能对话 · 探索无限可能</span></footer>
+      <footer class="site-footer"><span>© {{ new Date().getFullYear() }} 春日部当红小P的AI空间</span><span>智能对话 · 探索无限可能</span></footer>
     </section>
   </main>
 
@@ -1335,7 +1340,7 @@ async function scrollToBottom() {
           <button v-else type="submit" :disabled="!draft.trim() || isStreaming" aria-label="发送消息">↑</button>
         </form>
         <p class="hint">Enter 发送 · Shift + Enter 换行</p>
-        <footer class="chat-footer">© {{ new Date().getFullYear() }} CZ AI WORKSPACE · 智能对话服务</footer>
+        <footer class="chat-footer">© {{ new Date().getFullYear() }} 春日部当红小P的AI空间 · 智能对话服务</footer>
       </div>
 
       <!-- 人工提问弹窗 -->

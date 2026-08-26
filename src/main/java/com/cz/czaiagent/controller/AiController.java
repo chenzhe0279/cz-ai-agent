@@ -13,6 +13,16 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import java.io.IOException;
 
 @RestController
@@ -31,6 +41,8 @@ public class AiController {
     @Resource
     private HumanInteractionService humanInteractionService;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @GetMapping("/love_app/chat/sync")
     public String doChatWithLoveAppSync(String message, String chatId) {
         return loveApp.doChat(message, chatId);
@@ -38,23 +50,23 @@ public class AiController {
 
     @GetMapping(value = "/love_app/chat/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> doChatWithLoveAppSSE(String message, String chatId) {
-        return loveApp.doChatByStream(message, chatId);
+        return loveApp.doChatByStream(message, chatId, null);
     }
 
     @GetMapping(value = "/love_app/chat/sent_event")
     public Flux<ServerSentEvent<String>> doChatWithLoveAppSentEvent(String message, String chatId) {
-        return loveApp.doChatByStream(message, chatId)
+        return loveApp.doChatByStream(message, chatId, null)
                 .map(chunk -> ServerSentEvent.<String>builder()
                         .data(chunk)
                         .build());
     }
 
     @GetMapping("/love_app/chat/sse/emitter")
-    public SseEmitter doChatWithLoveAppSseEmitter(String message, String chatId) {
+    public SseEmitter doChatWithLoveAppSseEmitter(String message, String chatId, String history) {
         // 创建一个超时时间较长的 SseEmitter
         SseEmitter emitter = new SseEmitter(180000L); // 3分钟超时
         // 获取 Flux 数据流并直接订阅
-        loveApp.doChatByStream(message, chatId)
+        loveApp.doChatByStream(message, chatId, history)
                 .subscribe(
                         // 处理每条消息
                         chunk -> {
@@ -80,9 +92,31 @@ public class AiController {
      * @return
      */
     @GetMapping("/manus/chat")
-    public SseEmitter doChatWithManus(String message) {
+    public SseEmitter doChatWithManus(String message, String history) {
         CzManus czManus = new CzManus(allTools, dashscopeChatModel,humanInteractionService);
+        // 用前端传来的历史初始化上下文，实现中断后续写；未传则为全新任务
+        czManus.setMessageList(parseMessages(history));
         return czManus.runStream(message);
+    }
+
+    /** 解析前端 history JSON 为 Spring AI 消息列表（manus 上下文初始化用） */
+    private List<Message> parseMessages(String history) {
+        if (history == null || history.isBlank()) return List.of();
+        try {
+            List<Map<String, String>> list = objectMapper.readValue(history, new TypeReference<List<Map<String, String>>>() {});
+            List<Message> msgs = new ArrayList<>();
+            for (Map<String, String> m : list) {
+                if (m == null) continue;
+                String role = m.get("role");
+                String content = m.get("content");
+                if (content == null || content.isBlank()) continue;
+                if ("user".equals(role)) msgs.add(new UserMessage(content));
+                else if ("assistant".equals(role)) msgs.add(new AssistantMessage(content));
+            }
+            return msgs;
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
 
@@ -137,11 +171,11 @@ public class AiController {
      */
     @GetMapping("/rag/chat/sse")
     public SseEmitter doChatWithRagSse(String message, String chatId,
-                                       @RequestParam(defaultValue = "单身") String status) {
+                                       @RequestParam(defaultValue = "单身") String status, String history) {
         // 创建一个超时时间较长的 SseEmitter
         SseEmitter emitter = new SseEmitter(180000L); // 3分钟超时
         // 获取 RAG 增强的 Flux 数据流并直接订阅
-        loveApp.doChatWithRagByStream(message, chatId, status)
+        loveApp.doChatWithRagByStream(message, chatId, status, history)
                 .subscribe(
                         // 处理每条消息
                         chunk -> {
