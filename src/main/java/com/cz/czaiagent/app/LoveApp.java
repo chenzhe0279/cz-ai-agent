@@ -262,7 +262,7 @@ public class LoveApp {
         List<Document> matchedDocs = preRetriever.retrieve(new Query(rewriteMessage));
         if (matchedDocs == null || matchedDocs.isEmpty()) {
             // 知识库未命中：直接输出固定说辞（不走模型，确保原样返回）
-            String fallback = "抱歉，我只能回答情感相关的问题，别的没办法帮到您哦，\n"
+            String fallback = "抱歉，我只能回答知识库已包含的情感相关问题，别的没办法帮到您哦，\n"
                     + "有问题可以联系网站主理人：-若世有神明-\n"
                     + "联系电话：19177777777";
             log.info("RAG 未命中，返回固定说辞。message={}, status={}", message, status);

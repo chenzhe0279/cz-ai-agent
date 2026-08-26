@@ -1,0 +1,16 @@
+# ===== 构建上下文排除（减小上传体积，降低镜像推送异常概率）=====
+node_modules
+dist
+.git
+.gitignore
+.idea
+.DS_Store
+Thumbs.db
+*.log
+
+# 环境变量文件：默认排除本地/开发环境，但保留 .env.production（供 Vite 构建注入后端地址）
+.env
+.env.local
+.env.development
+.env.*.local
+.env.example
