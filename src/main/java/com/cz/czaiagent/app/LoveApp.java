@@ -112,33 +112,67 @@ public class LoveApp {
      * @return AI回复文本
      */
     /** 重建该会话记忆：用前端传入的 history（不含本次 user）替换，供 MessageChatMemoryAdvisor 取用，实现中断后续写 */
+    /**
+     * 重建指定会话的聊天记忆。
+     * 当前端传入历史消息时，先清空该会话在内存中的旧记忆，再写入前端提供的历史消息，
+     * 这样后续 MessageChatMemoryAdvisor 可以基于前端历史继续对话，实现中断后的续写。
+     *
+     * @param chatId  会话 ID
+     * @param history 前端传入的 JSON 格式历史消息
+     */
     private void rebuildMemory(String chatId, String history) {
+        // 如果 chatMemory 未初始化（为 null），直接返回，避免空指针异常
         if (chatMemory == null) return;
+        // 将前端传入的 history 字符串解析为 Spring AI 的消息列表
         List<Message> hist = parseHistory(history);
+        // 如果解析结果为空，说明前端没有提供历史消息，保留后端已有的记忆，不做清空操作
         if (hist.isEmpty()) return; // 未传历史时不覆盖，保留后端原有记忆
+        // 清空该会话之前保存的旧记忆，准备写入前端提供的历史消息
         chatMemory.clear(chatId);
+        // 将前端提供的历史消息写入 chatMemory，完成记忆重建
         chatMemory.add(chatId, hist);
     }
 
-    /** 解析前端传来的 history JSON（[{"role","content"},...]）为 Spring AI 消息列表 */
+    /**
+     * 解析前端传来的 history JSON（[{"role","content"},...]）为 Spring AI 消息列表。
+     * 只识别 role 为 user 和 assistant 的消息，其他角色或无效数据会被忽略。
+     *
+     * @param history JSON 格式的历史消息字符串
+     * @return 解析后的 Spring AI Message 列表；如果输入为空或解析失败，返回空列表
+     */
     private List<Message> parseHistory(String history) {
+        // 如果传入的 history 为 null 或空白字符串，直接返回不可变空列表，避免后续解析异常
         if (history == null || history.isBlank()) return List.of();
         try {
+            // 使用 Jackson 将 history JSON 字符串反序列化为 List<Map<String, String>>
+            // TypeReference 用于保留完整的泛型信息，避免类型擦除导致反序列化失败
             List<Map<String, String>> list = objectMapper.readValue(history, new TypeReference<List<Map<String, String>>>() {});
+            // 创建可变列表，用于存储解析后的 Spring AI 消息对象
             List<Message> msgs = new ArrayList<>();
+            // 遍历解析出的每一个历史消息 Map
             for (Map<String, String> m : list) {
+                // 跳过 null 元素，避免处理过程中出现空指针异常
                 if (m == null) continue;
+                // 从 Map 中获取消息角色
                 String role = m.get("role");
+                // 从 Map 中获取消息内容
                 String content = m.get("content");
+                // 如果内容为 null 或空白字符串，跳过该消息，因为空白消息没有实际意义
                 if (content == null || content.isBlank()) continue;
+                // 如果角色是 user，则封装为 UserMessage
                 if ("user".equals(role)) {
+                    // 创建 UserMessage 并添加到消息列表
                     msgs.add(new UserMessage(content));
                 } else if ("assistant".equals(role)) {
+                    // 如果角色是 assistant，则封装为 AssistantMessage
                     msgs.add(new AssistantMessage(content));
                 }
+                // 其他角色（如 system）不处理，直接忽略
             }
+            // 返回所有解析成功的消息列表
             return msgs;
         } catch (Exception e) {
+            // 解析过程中出现任何异常，记录警告日志并返回空列表，避免影响主流程
             log.warn("history 解析失败，忽略", e);
             return List.of();
         }
