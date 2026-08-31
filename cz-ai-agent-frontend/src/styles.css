@@ -1536,3 +1536,50 @@ h1 em {
   .chat-footer { font-size: 9px; padding-bottom: 12px; }
   .human-dialog { padding: 25px; }
 }
+
+/* ================= 入场显现：打开页面后文案从上往下缓缓浮现 =================
+   参考 Meoo 落地页的信息登场方式：主导航 → 眉题 → 大标题 → 副文案 → CTA →
+   应用卡片 → 特性条 → 页脚，依次自上而下交错浮现。
+   使用 animation-fill-mode: backwards（仅在延迟期间保持隐藏的 from 帧，
+   动画结束后回落到自然样式），避免遮挡卡片 / 按钮的 hover 位移。
+   深空星点 / 极光 / 网格等装饰层保持隐藏以透出背景，不在登场序列内。 */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.reveal {
+  animation: reveal-up 1s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+  animation-delay: var(--rd, 0ms);
+  will-change: opacity, transform, filter;
+}
+
+/* 首页各区段自上而下的交错延迟（顺序与 DOM 一致：文本往下流动） */
+.home-copy.loading-copy { --rd: 120ms; }
+.site-nav { --rd: 240ms; }
+.hero .eyebrow { --rd: 380ms; }
+.hero h1 { --rd: 520ms; }
+.hero .hero-sub { --rd: 660ms; }
+.hero .hero-cta { --rd: 800ms; }
+.app-grid > .app-card:nth-child(1) { --rd: 960ms; }
+.app-grid > .app-card:nth-child(2) { --rd: 1080ms; }
+.app-grid > .app-card:nth-child(3) { --rd: 1200ms; }
+.feature-strip > .feature:nth-child(1) { --rd: 1360ms; }
+.feature-strip > .feature:nth-child(2) { --rd: 1460ms; }
+.feature-strip > .feature:nth-child(3) { --rd: 1560ms; }
+.feature-strip > .feature:nth-child(4) { --rd: 1660ms; }
+.site-footer { --rd: 1820ms; }
+
+/* 弱化动态偏好：直接展示，不播放入场动画 */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+  }
+}

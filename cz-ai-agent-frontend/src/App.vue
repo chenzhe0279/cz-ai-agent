@@ -1124,7 +1124,7 @@ async function scrollToBottom() {
         <span class="aurora aurora-c"></span>
       </div>
       <div class="diag-grid" aria-hidden="true"></div>
-      <div class="home-copy loading-copy">
+      <div class="home-copy loading-copy reveal">
         <p class="eyebrow">PERSONAL INTELLIGENCE, EXPANDED</p>
         <h1>正在加载工作台<span class="load-dots"><i>.</i><i>.</i><i>.</i></span></h1>
       </div>
@@ -1141,7 +1141,7 @@ async function scrollToBottom() {
         <span class="aurora aurora-c"></span>
       </div>
       <div class="diag-grid" aria-hidden="true"></div>
-      <header class="site-nav">
+      <header class="site-nav reveal">
         <div class="brand"><span class="brand-mark">✦</span><span>春日部当红小P</span><small>AI空间</small></div>
         <div class="nav-user">
           <template v-if="auth.user">
@@ -1162,17 +1162,17 @@ async function scrollToBottom() {
         </div>
       </header>
       <div class="hero">
-        <p class="eyebrow">PERSONAL INTELLIGENCE, EXPANDED</p>
-        <h1>驶入未知，<em>与星辰同频。</em></h1>
-        <p class="hero-sub">{{ auth.user ? `欢迎回来，${userDisplayName}。选择一位 AI 伙伴，让灵感、情感与行动在此刻汇聚。` : '游客可直接体验「AI 智能助手」，登录后解锁「AI 情感专家」「AI 超级智能体」。' }}</p>
-        <div class="hero-cta">
+        <p class="eyebrow reveal">PERSONAL INTELLIGENCE, EXPANDED</p>
+        <h1 class="reveal">驶入未知，<em>与星辰同频。</em></h1>
+        <p class="hero-sub reveal">{{ auth.user ? `欢迎回来，${userDisplayName}。选择一位 AI 伙伴，让灵感、情感与行动在此刻汇聚。` : '游客可直接体验「AI 智能助手」，登录后解锁「AI 情感专家」「AI 超级智能体」。' }}</p>
+        <div class="hero-cta reveal">
           <button class="btn-primary" @click="openApp('love')"><span>开始对话</span><b>→</b></button>
           <button v-if="!auth.user" class="btn-ghost" @click="view = 'register'">创建账号</button>
           <button v-else class="btn-ghost" @click="view = 'profile'">个人中心</button>
         </div>
       </div>
       <div class="app-grid">
-        <button v-for="item in apps" :key="item.id" class="app-card" :class="item.color" @click="openApp(item.id)">
+        <button v-for="item in apps" :key="item.id" class="app-card reveal" :class="item.color" @click="openApp(item.id)">
           <span class="card-slice" aria-hidden="true"></span>
           <span class="card-orbit"></span><span class="card-icon">{{ item.icon }}</span>
           <span class="card-content">
@@ -1183,12 +1183,12 @@ async function scrollToBottom() {
         </button>
       </div>
       <div class="feature-strip">
-        <div class="feature"><b>实时流式</b><span>逐字响应，对话如临其境</span></div>
-        <div class="feature"><b>多会话管理</b><span>历史记录与草稿自动保存</span></div>
-        <div class="feature"><b>三大 AI 伙伴</b><span>智能助手 · 超级智能体 · 情感专家</span></div>
-        <div class="feature"><b>账号体系</b><span>邮箱验证 · 数据安全可靠</span></div>
+        <div class="feature reveal"><b>实时流式</b><span>逐字响应，对话如临其境</span></div>
+        <div class="feature reveal"><b>多会话管理</b><span>历史记录与草稿自动保存</span></div>
+        <div class="feature reveal"><b>三大 AI 伙伴</b><span>智能助手 · 超级智能体 · 情感专家</span></div>
+        <div class="feature reveal"><b>账号体系</b><span>邮箱验证 · 数据安全可靠</span></div>
       </div>
-      <footer class="site-footer"><span>© {{ new Date().getFullYear() }} 春日部当红小P的AI空间</span><span>智能对话 · 探索无限可能</span></footer>
+      <footer class="site-footer reveal"><span>© {{ new Date().getFullYear() }} 春日部当红小P的AI空间</span><span>智能对话 · 探索无限可能</span></footer>
     </section>
   </main>
 

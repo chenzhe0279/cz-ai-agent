@@ -223,8 +223,8 @@ public class LoveApp {
     //@Resource
     //private Advisor loveAppRagCloudAdvisor;
 
-    //@Resource
-    //private VectorStore pgVectorVectorStore;
+    @Resource
+    private VectorStore pgVectorVectorStore;
 
     //@Resource
     //rivate JdbcTemplate jdbcTemplate;

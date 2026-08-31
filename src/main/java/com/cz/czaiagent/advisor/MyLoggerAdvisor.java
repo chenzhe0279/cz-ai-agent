@@ -33,16 +33,16 @@ public class MyLoggerAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
         log.info("AI Response: {}", advisedResponse.response().getResult().getOutput().getText());
     }
 
-    public AdvisedResponse aroundCall(AdvisedRequest advisedRequest, CallAroundAdvisorChain chain) {
-        advisedRequest = this.before(advisedRequest);
-        AdvisedResponse advisedResponse = chain.nextAroundCall(advisedRequest);
-        this.observeAfter(advisedResponse);
-        return advisedResponse;
-    }
+    public AdvisedResponse aroundCall(AdvisedRequest advisedRequest, CallAroundAdvisorChain chain) { // 同步调用环绕通知方法，接收请求和调用链
+        advisedRequest = this.before(advisedRequest); // 请求前处理：记录用户输入日志
+        AdvisedResponse advisedResponse = chain.nextAroundCall(advisedRequest); // 继续执行调用链，获取 AI 响应
+        this.observeAfter(advisedResponse); // 响应后处理：记录 AI 回复日志
+        return advisedResponse; // 返回最终响应
+    } // aroundCall 方法结束
 
-    public Flux<AdvisedResponse> aroundStream(AdvisedRequest advisedRequest, StreamAroundAdvisorChain chain) {
-        advisedRequest = this.before(advisedRequest);
-        Flux<AdvisedResponse> advisedResponses = chain.nextAroundStream(advisedRequest);
-        return (new MessageAggregator()).aggregateAdvisedResponse(advisedResponses, this::observeAfter);
-    }
+    public Flux<AdvisedResponse> aroundStream(AdvisedRequest advisedRequest, StreamAroundAdvisorChain chain) { // 流式调用环绕通知方法，接收请求和流式调用链
+        advisedRequest = this.before(advisedRequest); // 请求前处理：记录用户输入日志
+        Flux<AdvisedResponse> advisedResponses = chain.nextAroundStream(advisedRequest); // 继续执行流式调用链，获取响应流
+        return (new MessageAggregator()).aggregateAdvisedResponse(advisedResponses, this::observeAfter); // 聚合流式响应，并在聚合完成后记录完整 AI 回复日志
+    } // aroundStream 方法结束
 }
